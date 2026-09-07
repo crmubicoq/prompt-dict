@@ -48,8 +48,10 @@
 
             // 참고자료 설정
             setupReferences();
+        });
 
-            // 상세 모달 닫기 버튼 이벤트
+        // 상세 모달 닫기 버튼 이벤트
+        document.addEventListener('DOMContentLoaded', function() {
             const closeDetailBtn = document.getElementById('close-detail-modal');
             const detailOverlay = document.getElementById('detail-modal-overlay');
 
