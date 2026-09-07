@@ -45,9 +45,6 @@
 
             // 이미지 썸네일 설정
             setupThumbnailFeature();
-
-            // 참고자료 설정
-            setupReferences();
         });
 
         // 상세 모달 닫기 버튼 이벤트
