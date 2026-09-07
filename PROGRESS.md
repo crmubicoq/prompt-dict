@@ -111,33 +111,46 @@
 
 **목표: 서버 이식 비용을 미리 낮춘다. 이 단계가 전체에서 가장 중요.**
 
-- [ ] GitHub 저장소 생성 (`prompt-dict`)
-- [ ] `git config --local` 로 계정 설정 (공용 서버, `--global` 금지)
-- [ ] 단일 HTML 파일 분리
-  - `index.html`
-  - `css/style.css`
-  - `js/storage.js` — 저장 계층 (아래 참고)
-  - `js/prompts.js` — 프롬프트 CRUD·렌더링
-  - `js/references.js` — 참고자료
-  - `js/ui.js` — 모달·토스트·테마
-- [ ] **저장 계층 추상화** — 전 코드에서 `localStorage` 직접 호출 제거
+> **진행 상황 (2026-09-08 기준)** — 커밋 `173d388` ~ `0a0d19e`
+> 완료: T-006 · T-007(a~i) · T-008 / **남음: T-009 · T-010 · T-012 · T-013**
+> 상세 [`docs/worklog/2026-09-08.md`](./docs/worklog/2026-09-08.md)
+
+- [x] GitHub 저장소 생성 (`prompt-dict`)
+- [x] `git config --local` 로 계정 설정 (공용 서버, `--global` 금지)
+- [x] 단일 HTML 파일 분리 — **4,365줄 → `index.html` + CSS 1개 + JS 11개**
+  - `index.html` (446줄) — 인라인 `<script>` 에는 `console.log` 15줄만 남음
+  - `css/style.css` (1,210줄)
+  - `js/config.js` — 전역 상수·상태
+  - `js/storage.js` — 저장 계층
+  - `js/ui.js` · `js/categories.js` · `js/prompts.js` · `js/tags.js`
+    `js/search-history.js` · `js/selection.js` · `js/thumbnail.js` · `js/import.js`
+  - `js/main.js` — `DOMContentLoaded` 진입점 (**리스너 2개 유지**, 예외 격리)
+  - ※ 최초안의 `js/references.js` 는 만들지 않음 — 참고자료 **기능 자체를 제거**
+    (실사용 0건. `legacy/original.html` 과 git 히스토리에 보존)
+  - ※ 함수 **87개 → 73개**. 매 단계 `tools/fnmap.py` 이름별 본문 md5 대조로 무손실 확인
+- [x] **저장 계층 추상화 — 인터페이스** (T-008)
+- [ ] **저장 계층 추상화 — 호출부 교체** (T-009 / T-010)
 
 ```js
 // js/storage.js — 어댑터만 교체하면 서버 전환 완료
-const Storage = {
-  async getPrompts() {},
-  async savePrompt(p) {},
-  async deletePrompt(id) {},
-  async getCategories() {},
-  async getReferences() {},
-  // ...
+const PromptStorage = {
+  adapter: LocalStorageAdapter,        // P3에서 ApiAdapter 로 교체
+  async getPrompts() {},        async savePrompts(list) {},
+  async getFavorites() {},      async saveFavorites(set) {},
+  async getCategories() {},     async saveCategories(list) {},
+  async getSearchHistory() {},  async saveSearchHistory(list) {},
+  async getSetting(k) {},       async setSetting(k, v) {},
+  async removeAll() {}
 };
 // 로컬: LocalStorageAdapter
 // 서버: ApiAdapter (fetch → FastAPI)
 ```
 
-- [ ] 분리 후 동작 확인 (기존 데이터 그대로 로드되는지)
-- [ ] 초기 커밋 + `README.md` + `CLAUDE.md`
+`localStorage` 직접 호출 잔량 — `storage.js` 12 (어댑터 5 + 기존 함수 7),
+`search-history.js` 2, `ui.js` 2. T-010 완료 시 `storage.js` 안에만 남아야 한다.
+
+- [x] 분리 후 동작 확인 — 헤드리스 Chrome 실행: 미처리 예외 0건, 렌더링·초기화 정상
+- [x] 초기 커밋 + `CLAUDE.md` (`README.md` 는 T-012)
 
 ### P1 — 버그 및 보안 수정
 

@@ -75,3 +75,19 @@ B13 CSV 단순 split · B14 임포트 notes 소실 · B15 썸네일 카테고리
 - FAB "🏠 Hub" 버튼 + 허브 카드 등록 + `_safe_next` 화이트리스트
 - systemd 등록 (`stt.service` 템플릿)
 - `prompts.db` 를 4시 자동 백업 대상에 추가
+
+## 문서 규칙
+
+| 경로 | 성격 | 작성 |
+|---|---|---|
+| `docs/devlog.md` | 기술 기록 — 어떻게 고쳤나, 함정, 원리 | Claude Code |
+| `docs/worklog/날짜.md` | 그날 작업 | Claude Code |
+| `docs/decisions/날짜.md` | 대화 판단 — 왜 그 길로 갔나 | **GON** |
+
+- "오늘 마무리" 라고 하면 `docs/worklog/날짜.md` 에 그날 작업일지를 쓴다.
+  담을 것: 완료 태스크 / 결정사항 / 막힌 부분·특이건 / 기술 메모 / 다음 작업
+  커밋 이력과 그날 대화 내용을 근거로 작성한다.
+- 재사용 가능한 원리·함정·패턴은 `docs/devlog.md` 에 주제별로 축적한다.
+  날짜순이 아니라 주제별. worklog와 중복시키지 말고 worklog에서 devlog 절을 참조한다.
+- ★ `docs/decisions/` 는 GON이 직접 넣는 곳이므로 절대 생성·수정·삭제하지 않는다.
+  읽는 것은 가능하다. 세션 시작 시 최근 것을 읽으면 맥락 파악에 도움이 된다.

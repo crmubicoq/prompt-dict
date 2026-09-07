@@ -24,7 +24,7 @@
 - [x] **T-000** 전체 백업 완료 (키 5개: data / categories / favorites / theme / searchHistory)
 - [x] 실데이터 0건 확인 — 저장된 3개는 전부 샘플 (AI PM 가이드 / 블로그 글쓰기 / 데이터 분석)
 - [x] `promptDictionary_references` 미생성 — 참고자료 실사용 0건
-- [ ] 원본 HTML을 `legacy/` 에 보관
+- [x] 원본 HTML을 `legacy/` 에 보관
 
 > **지킬 데이터가 없으므로** 하위 호환·ID 마이그레이션 태스크는 전부 삭제됨.
 > P0/P1을 과감하게 진행해도 됨.
@@ -35,13 +35,14 @@
 
 목표: GitHub에서 diff를 읽을 수 있게 만들고, 서버 이식 비용을 미리 낮춘다.
 
-- [ ] **T-001** GitHub 저장소 `prompt-dict` 생성 (private)
+- [x] **T-001** GitHub 저장소 `prompt-dict` 생성 (private)
       ※ 이름 변경 원하면 여기서 확정 (문서 3개의 표기도 함께 수정)
-- [ ] **T-002** 로컬 클론 후 `git config --local user.name` / `user.email` 설정
+- [x] **T-002** 로컬 클론 후 `git config --local user.name` / `user.email` 설정
       ※ 공용 서버에서 `--global` 금지
-- [ ] **T-003** `PRD.md` / `PROGRESS.md` / `TODO.md` 커밋
-- [ ] **T-004** 원본 HTML을 `legacy/` 폴더에 그대로 커밋 (비교 기준점)
-- [ ] **T-005** 폴더 구조 생성
+- [x] **T-003** `PRD.md` / `PROGRESS.md` / `TODO.md` 커밋
+- [x] **T-004** 원본 HTML을 `legacy/` 폴더에 그대로 커밋 (비교 기준점)
+- [x] **T-005** 폴더 구조 생성
+      ※ 실제 구조는 아래와 다름 — `data.js` 대신 기능별 11개 파일로 분할
 
 ```
 prompt-dict/
@@ -57,15 +58,29 @@ prompt-dict/
 └── docs/
 ```
 
-- [ ] **T-006** CSS 전체를 `css/style.css` 로 이동, `<link>` 연결
-      완료 조건: 화면이 원본과 동일하게 보임
-- [ ] **T-007** JS를 위 파일들로 분할, `<script>` 로 순서대로 로드
-      순서: `ui.js` → `prompts.js` → `data.js` → `main.js` (의존성 적은 순)
-      **파일 하나 옮길 때마다 브라우저 확인 후 다음으로**
-      완료 조건: 콘솔 에러 0건, 기존 기능 전부 동작
-- [ ] **T-007b** 참고자료 관련 코드·모달·CSS 제외 (실사용 0건)
-      ※ 삭제가 아니라 이관 대상에서 제외. `legacy/` 와 git 히스토리에 보존됨
-- [ ] **T-008** `js/storage.js` 작성 — 저장 계층 인터페이스
+- [x] **T-006** CSS 전체를 `css/style.css` 로 이동, `<link>` 연결 — `173d388`
+      완료 조건 충족: 분리분을 도로 합쳐 원본과 md5 일치 확인
+- [x] **T-007** JS 분할, `<script>` 로 순서대로 로드 — 계획서 [`docs/T007-split-plan.md`](./docs/T007-split-plan.md)
+      실제 로드 순서: `config` → `ui` → `storage` → `categories` → `prompts` → `tags`
+      → `search-history` → `selection` → `thumbnail` → `import` → `main`
+      완료 조건 충족: 콘솔 에러 0건, 헤드리스 실행 정상
+  - [x] **T-007a** `config.js`(전역 상수·상태) + `main.js`(진입점) + 빈 파일 9개 + `<script>` 11개 — `3c85a0c`
+  - [x] **T-007b** `ui.js` 4개 (`formatDate` `fallbackCopy` `showToast` `setupThemeToggle`) — `9d705ab`
+  - [x] **T-007c** `storage.js` 7개 (저장·불러오기·내보내기) — `ba0d136`
+  - [x] **T-007d** `categories.js` 11개 — `2336a7a`
+  - [x] **T-007e-1** `prompts.js` 검색·정렬·렌더링 7개 — `ab8eb79`
+  - [x] **T-007e-2** `prompts.js` 모달·폼 10개 — `e1dfdc4`
+  - [x] **T-007f** `tags.js` 4 + `search-history.js` 7 — `ba042a7`
+  - [x] **T-007g** `selection.js` 8 + `thumbnail.js` 9 — `9a0f0aa`
+  - [x] **T-007h** `import.js` 6 (JSON/CSV/TXT 파서) — `1881063`
+  - [x] **T-007i** 참고자료 기능 제거 (함수 14 + 전역 4 + 모달 2 + 버튼 + `main.js` 호출) — `e338d35`
+        ※ 원래 "이관 대상에서 제외"였으나 **완전 제거**로 격상. 실사용 0건이고
+        `legacy/original.html` 과 git 히스토리에 보존되므로 복원 가능
+        ※ **CSS는 남겨둠** — 참고자료용 스타일 정리는 별도 태스크
+      ※ 회귀 1건: T-007a에서 `DOMContentLoaded` 를 하나로 합쳤다가 예외 격리가
+      사라짐. Codex 검수로 발견 → `71c81d2` 로 리스너 2개 복원
+      ※ 검증: `tools/fnmap.py` 이름별 본문 md5 대조로 매 단계 차이 0. 함수 87 → 73
+- [x] **T-008** `js/storage.js` 저장 계층 인터페이스 — `0a0d19e`
 
 ```js
 const PromptStorage = {
@@ -84,12 +99,17 @@ const PromptStorage = {
 >   현재 저장 코드가 전부 컬렉션 통째 저장이라 단건 API는 P3에서 재검토
 > - `getReferences` / `saveReference` / `deleteReference` 삭제 (T-007i에서 기능 제거)
 > - `getSearchHistory` / `saveSearchHistory` / `removeAll` 추가
+>
+> 읽기 3상태(없음 `null` / 파싱 실패 `throw` / 정상), 읽기 실패 시 쓰기 차단,
+> `removeAll` 은 가드 우회 → [`docs/devlog.md`](./docs/devlog.md) §4
 
 - [ ] **T-009** 호출부를 `PromptStorage` 경유로 교체
       ※ `LocalStorageAdapter` 구현체는 T-008에서 이미 작성됨
+      ※ `initializeData` try/catch 부재도 이 태스크에서 함께 처리 (어댑터가 throw하므로)
+      ※ 손상 데이터 복구 UI는 T-115로 미룸 — 근거 [`docs/decisions/2026-09-08-decisions.md`](./docs/decisions/2026-09-08-decisions.md) §6
 - [ ] **T-010** 기존 함수 7개 제거 (`loadFromLocalStorage` 죽은 코드 포함)
       완료 조건: `grep -rn "localStorage" js/` 결과가 `storage.js` 안에만 존재
-- [ ] **T-011** `CLAUDE.md` 작성 (프로젝트 개요·구조·금지사항)
+- [x] **T-011** `CLAUDE.md` 작성 (프로젝트 개요·구조·금지사항) — `5937a5d`, 이후 계속 갱신
 - [ ] **T-012** `README.md` 작성
 - [ ] **T-013** Codex 검수 → 커밋 → **P0 완료**
 
