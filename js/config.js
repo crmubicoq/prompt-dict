@@ -1,0 +1,106 @@
+        // 3.3: LocalStorage 키 이름 정의
+        const STORAGE_KEY = 'promptDictionary_data';
+        const FAVORITES_KEY = 'promptDictionary_favorites';
+        const THEME_KEY = 'promptDictionary_theme';
+        const CATEGORIES_KEY = 'promptDictionary_categories';
+
+        // 전역 변수: 모든 프롬프트를 저장하는 배열
+        let allPrompts = [];
+        let favoriteIds = new Set(); // 즐겨찾기 ID 모음
+
+        // 카테고리 관리 (동적)
+        let categories = [];
+        const defaultCategories = [
+            { emoji: '💻', name: '개발' },
+            { emoji: '✍️', name: '콘텐츠' },
+            { emoji: '📊', name: '분석' },
+            { emoji: '🎓', name: '교육' },
+            { emoji: '🎨', name: '이미지 생성' },
+            { emoji: '📌', name: '기타' }
+        ];
+
+        // 3.4: 샘플 데이터 3개 만들기 (테스트용)
+        const sampleData = [
+            {
+                id: 1,
+                title: 'AI PM 가이드 프롬프트',
+                content: `당신은 비개발자가 AI 코딩 도구(Cursor, Lovable, v0 등)를 사용하여 웹앱을 개발할 수 있도록 돕는 전문 AI 제품 관리자(PM)이자 코딩 가이드입니다.
+
+라이언카슨의 '3단계 규칙(PRD -> Task List -> Sequential Execution)'을 핵심 방법론으로 사용합니다.
+
+1단계: PRD(제품 요구사항 정의서) 작성
+2단계: 태스크 리스트(Task List) 생성  
+3단계: 실행(Execution) 가이드`,
+                category: '개발',
+                tags: ['코딩', '비개발자', 'PM', '가이드'],
+                description: '비개발자를 위한 AI 코딩 도구 활용 가이드. 3단계 규칙으로 체계적인 개발 진행.',
+                createdAt: new Date('2026-01-19').toISOString(),
+                isFavorite: false
+            },
+            {
+                id: 2,
+                title: '블로그 글쓰기 프롬프트',
+                content: `SEO 최적화된 블로그 글을 작성해주세요.
+
+주제: [주제 입력]
+목표 독자: [독자 설명]
+키워드: [주요 키워드]
+
+다음 구조로 작성:
+1. 흥미로운 도입부
+2. 문제 정의
+3. 해결책 제시 (3가지)
+4. 실용적인 팁
+5. 행동 촉구 결론
+
+톤: 친근하고 전문적, 쉬운 언어 사용`,
+                category: '콘텐츠',
+                tags: ['블로그', 'SEO', '글쓰기'],
+                description: 'SEO를 고려한 블로그 콘텐츠 작성 템플릿. 구조화된 형식으로 독자 친화적인 글 작성.',
+                createdAt: new Date('2026-01-18').toISOString(),
+                isFavorite: false
+            },
+            {
+                id: 3,
+                title: '데이터 분석 요청 프롬프트',
+                content: `첨부된 데이터를 분석하고 다음 형식으로 리포트해주세요:
+
+1. 데이터 개요
+   - 전체 행/열 수
+   - 주요 변수 설명
+
+2. 기술 통계
+   - 평균, 중앙값, 표준편차
+   - 이상치 탐지
+
+3. 시각화 제안
+   - 적절한 차트 종류
+   - 핵심 인사이트 강조
+
+4. 비즈니스 인사이트
+   - 주요 발견사항 3가지
+   - 액션 아이템 제안
+
+결과는 비전문가도 이해할 수 있게 설명해주세요.`,
+                category: '분석',
+                tags: ['데이터', '통계', '시각화', '리포트'],
+                description: '데이터를 체계적으로 분석하고 비즈니스 인사이트를 도출하는 프롬프트.',
+                createdAt: new Date('2026-01-17').toISOString(),
+                isFavorite: false
+            }
+        ];
+
+        let currentFilter = 'all'; // 현재 선택된 필터
+        let currentSearchQuery = ''; // 현재 검색어
+        let currentSortOrder = 'newest'; // 현재 정렬 방식
+
+        let currentDetailId = null;
+
+        const SEARCH_HISTORY_KEY = 'promptDictionary_searchHistory';
+        const MAX_SEARCH_HISTORY = 5;
+        let searchHistory = [];
+
+        let isSelectionMode = false;
+        let selectedPromptIds = new Set();
+
+        let currentThumbnailData = null; // 현재 선택된 이미지 데이터 (base64)

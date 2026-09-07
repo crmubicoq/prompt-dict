@@ -509,98 +509,6 @@
          * }
          */
 
-        // 3.3: LocalStorage 키 이름 정의
-        const STORAGE_KEY = 'promptDictionary_data';
-        const FAVORITES_KEY = 'promptDictionary_favorites';
-        const THEME_KEY = 'promptDictionary_theme';
-        const CATEGORIES_KEY = 'promptDictionary_categories';
-
-        // 전역 변수: 모든 프롬프트를 저장하는 배열
-        let allPrompts = [];
-        let favoriteIds = new Set(); // 즐겨찾기 ID 모음
-
-        // 카테고리 관리 (동적)
-        let categories = [];
-        const defaultCategories = [
-            { emoji: '💻', name: '개발' },
-            { emoji: '✍️', name: '콘텐츠' },
-            { emoji: '📊', name: '분석' },
-            { emoji: '🎓', name: '교육' },
-            { emoji: '🎨', name: '이미지 생성' },
-            { emoji: '📌', name: '기타' }
-        ];
-
-        // 3.4: 샘플 데이터 3개 만들기 (테스트용)
-        const sampleData = [
-            {
-                id: 1,
-                title: 'AI PM 가이드 프롬프트',
-                content: `당신은 비개발자가 AI 코딩 도구(Cursor, Lovable, v0 등)를 사용하여 웹앱을 개발할 수 있도록 돕는 전문 AI 제품 관리자(PM)이자 코딩 가이드입니다.
-
-라이언카슨의 '3단계 규칙(PRD -> Task List -> Sequential Execution)'을 핵심 방법론으로 사용합니다.
-
-1단계: PRD(제품 요구사항 정의서) 작성
-2단계: 태스크 리스트(Task List) 생성  
-3단계: 실행(Execution) 가이드`,
-                category: '개발',
-                tags: ['코딩', '비개발자', 'PM', '가이드'],
-                description: '비개발자를 위한 AI 코딩 도구 활용 가이드. 3단계 규칙으로 체계적인 개발 진행.',
-                createdAt: new Date('2026-01-19').toISOString(),
-                isFavorite: false
-            },
-            {
-                id: 2,
-                title: '블로그 글쓰기 프롬프트',
-                content: `SEO 최적화된 블로그 글을 작성해주세요.
-
-주제: [주제 입력]
-목표 독자: [독자 설명]
-키워드: [주요 키워드]
-
-다음 구조로 작성:
-1. 흥미로운 도입부
-2. 문제 정의
-3. 해결책 제시 (3가지)
-4. 실용적인 팁
-5. 행동 촉구 결론
-
-톤: 친근하고 전문적, 쉬운 언어 사용`,
-                category: '콘텐츠',
-                tags: ['블로그', 'SEO', '글쓰기'],
-                description: 'SEO를 고려한 블로그 콘텐츠 작성 템플릿. 구조화된 형식으로 독자 친화적인 글 작성.',
-                createdAt: new Date('2026-01-18').toISOString(),
-                isFavorite: false
-            },
-            {
-                id: 3,
-                title: '데이터 분석 요청 프롬프트',
-                content: `첨부된 데이터를 분석하고 다음 형식으로 리포트해주세요:
-
-1. 데이터 개요
-   - 전체 행/열 수
-   - 주요 변수 설명
-
-2. 기술 통계
-   - 평균, 중앙값, 표준편차
-   - 이상치 탐지
-
-3. 시각화 제안
-   - 적절한 차트 종류
-   - 핵심 인사이트 강조
-
-4. 비즈니스 인사이트
-   - 주요 발견사항 3가지
-   - 액션 아이템 제안
-
-결과는 비전문가도 이해할 수 있게 설명해주세요.`,
-                category: '분석',
-                tags: ['데이터', '통계', '시각화', '리포트'],
-                description: '데이터를 체계적으로 분석하고 비즈니스 인사이트를 도출하는 프롬프트.',
-                createdAt: new Date('2026-01-17').toISOString(),
-                isFavorite: false
-            }
-        ];
-
         // 3.5: 데이터 초기화 함수
         function initializeData() {
             const stored = localStorage.getItem(STORAGE_KEY);
@@ -751,65 +659,9 @@
             select.innerHTML = html;
         }
 
-        // 페이지 로드 시 데이터 초기화
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('페이지 로드 완료');
-            initializeData();
-            
-            // 테스트: 콘솔에 데이터 출력
-            console.log('현재 프롬프트 개수:', allPrompts.length);
-            console.log('첫 번째 프롬프트:', allPrompts[0]);
-
-            // 카테고리 렌더링
-            renderCategoryList();
-            renderCategoryDropdown();
-
-            // Phase 4: 모달 관련 이벤트 리스너 등록 (Task 4.4 ~ 4.10)
-            setupModalEvents();
-
-            // Phase 5: 초기 목록 렌더링 (Task 5.5 ~ 5.8)
-            renderPromptList(allPrompts);
-
-            // Phase 6~8: 검색 및 필터 이벤트 리스너 등록
-            setupSearchAndFilters();
-
-            // Phase 12: 다크모드 설정
-            setupThemeToggle();
-
-            // Phase 13: 데이터 관리 설정
-            setupDataManagement();
-
-            // 카테고리 관리 모달 설정
-            setupCategoryManagement();
-
-            // 파일 업로드 설정
-            setupFileUpload();
-
-            // 태그 자동완성 설정
-            setupTagAutocomplete();
-
-            // 검색 기록 설정
-            loadSearchHistory();
-            renderSearchHistory();
-            setupSearchHistoryTracking();
-
-            // 일괄 삭제 설정
-            setupBulkDelete();
-
-            // 이미지 썸네일 설정
-            setupThumbnailFeature();
-
-            // 참고자료 설정
-            setupReferences();
-        });
-
         // ========================================
         // Phase 6~8: 검색 및 필터 기능
         // ========================================
-
-        let currentFilter = 'all'; // 현재 선택된 필터
-        let currentSearchQuery = ''; // 현재 검색어
-        let currentSortOrder = 'newest'; // 현재 정렬 방식
 
         function setupSearchAndFilters() {
             // Phase 6: 검색 기능
@@ -1065,8 +917,6 @@
         // Phase 9: 상세 보기 모달 (Task 9.3 ~ 9.6)
         // ========================================
 
-        let currentDetailId = null;
-
         // 9.3: 상세 모달 열기
         function openDetailModal(id) {
             const prompt = allPrompts.find(p => p.id === id);
@@ -1140,37 +990,6 @@
             document.body.style.overflow = 'auto';
             currentDetailId = null;
         }
-
-        // 상세 모달 닫기 버튼 이벤트
-        document.addEventListener('DOMContentLoaded', function() {
-            const closeDetailBtn = document.getElementById('close-detail-modal');
-            const detailOverlay = document.getElementById('detail-modal-overlay');
-
-            closeDetailBtn.addEventListener('click', closeDetailModal);
-
-            // 배경 클릭으로 닫기
-            detailOverlay.addEventListener('click', function(e) {
-                if (e.target === detailOverlay) {
-                    closeDetailModal();
-                }
-            });
-
-            // Phase 10: 복사 버튼 이벤트
-            const copyBtn = document.getElementById('copy-btn');
-            copyBtn.addEventListener('click', copyToClipboard);
-
-            // 수정 버튼 이벤트
-            const editBtn = document.getElementById('edit-prompt-btn');
-            editBtn.addEventListener('click', openEditPromptModal);
-
-            // 복제 버튼 이벤트
-            const duplicateBtn = document.getElementById('duplicate-prompt-btn');
-            duplicateBtn.addEventListener('click', duplicatePrompt);
-
-            // 삭제 버튼 이벤트
-            const deleteBtn = document.getElementById('delete-prompt-btn');
-            deleteBtn.addEventListener('click', deletePrompt);
-        });
 
         // ========================================
         // Phase 10: 복사 기능 (Task 10.3 ~ 10.7)
@@ -1875,10 +1694,6 @@
         // J. 검색 기록 기능
         // ========================================
 
-        const SEARCH_HISTORY_KEY = 'promptDictionary_searchHistory';
-        const MAX_SEARCH_HISTORY = 5;
-        let searchHistory = [];
-
         // 검색 기록 로드
         function loadSearchHistory() {
             try {
@@ -1979,9 +1794,6 @@
         // ========================================
         // L. 일괄 삭제 기능
         // ========================================
-
-        let isSelectionMode = false;
-        let selectedPromptIds = new Set();
 
         // 선택 모드 토글
         function toggleSelectionMode() {
@@ -2147,8 +1959,6 @@
         // ========================================
         // M. 이미지 썸네일 기능
         // ========================================
-
-        let currentThumbnailData = null; // 현재 선택된 이미지 데이터 (base64)
 
         // 이미지 업로드 섹션 표시/숨김 (카테고리 기반)
         function toggleThumbnailSection() {
@@ -3150,6 +2960,18 @@
         console.log('Phase 4 완료 ✅ - 프롬프트 추가 기능 완성');
         console.log('Phase 5 완료 ✅ - 프롬프트 목록 표시 기능 완성');
     </script>
+
+    <script src="js/config.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/categories.js"></script>
+    <script src="js/prompts.js"></script>
+    <script src="js/tags.js"></script>
+    <script src="js/search-history.js"></script>
+    <script src="js/selection.js"></script>
+    <script src="js/thumbnail.js"></script>
+    <script src="js/import.js"></script>
+    <script src="js/main.js"></script>
 
 </body>
 </html>
