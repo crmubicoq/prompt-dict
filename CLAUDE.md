@@ -24,7 +24,9 @@
 - **프롬프트 본문(`content`)을 임의로 수정·정리하지 않는다.** 원문 그대로 보존.
   프롬프트는 한 글자가 결과를 바꾼다. AI 자동정리는 메타데이터(제목·분류·태그)만
 - **조용한 실패 금지.** 실패는 명시적으로 드러낸다. 임의 기본값으로 덮지 않는다
-- `localStorage` 직접 호출 금지 (P0 이후). 반드시 `Storage` 어댑터 경유
+- `localStorage` 직접 호출 금지 (P0 이후). 반드시 `PromptStorage` 어댑터 경유
+  ※ 객체 이름이 `Storage` 가 아닌 이유: `Storage` 는 브라우저 내장 인터페이스라
+  전역에서 섀도잉하면 `localStorage instanceof Storage` 가 깨진다
 - 서버 배포 시 `~/apps/team_accounts/accounts.py` 수정 금지 (공유 모듈, import만)
 - git `--global` 설정 금지 (공용 서버). `--local`만 사용
 

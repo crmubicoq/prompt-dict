@@ -68,18 +68,26 @@ prompt-dict/
 - [ ] **T-008** `js/storage.js` 작성 — 저장 계층 인터페이스
 
 ```js
-const Storage = {
-  async getPrompts(),        async savePrompt(p),
-  async deletePrompt(id),    async getCategories(),
-  async saveCategories(c),   async getReferences(),
-  async saveReference(r),    async deleteReference(id),
-  async getFavorites(),      async saveFavorites(f),
-  async getSetting(k),       async setSetting(k, v)
+const PromptStorage = {
+  async getPrompts(),        async savePrompts(list),
+  async getFavorites(),      async saveFavorites(set),
+  async getCategories(),     async saveCategories(list),
+  async getSearchHistory(),  async saveSearchHistory(list),
+  async getSetting(k),       async setSetting(k, v),   // _theme 등 평문
+  async removeAll()                                   // 전체 삭제 (T-115 왕복 테스트용)
 };
 ```
 
-- [ ] **T-009** `LocalStorageAdapter` 구현 후 `Storage`에 연결
-- [ ] **T-010** 전 코드에서 `localStorage` 직접 호출 제거 → `Storage` 경유로 교체
+> **최초안에서 바뀐 점** (T-008에서 확정)
+> - 이름 `Storage` → `PromptStorage` (브라우저 내장 인터페이스 섀도잉 회피)
+> - 단건 `savePrompt(p)` / `deletePrompt(id)` → **전량** `savePrompts(list)`
+>   현재 저장 코드가 전부 컬렉션 통째 저장이라 단건 API는 P3에서 재검토
+> - `getReferences` / `saveReference` / `deleteReference` 삭제 (T-007i에서 기능 제거)
+> - `getSearchHistory` / `saveSearchHistory` / `removeAll` 추가
+
+- [ ] **T-009** 호출부를 `PromptStorage` 경유로 교체
+      ※ `LocalStorageAdapter` 구현체는 T-008에서 이미 작성됨
+- [ ] **T-010** 기존 함수 7개 제거 (`loadFromLocalStorage` 죽은 코드 포함)
       완료 조건: `grep -rn "localStorage" js/` 결과가 `storage.js` 안에만 존재
 - [ ] **T-011** `CLAUDE.md` 작성 (프로젝트 개요·구조·금지사항)
 - [ ] **T-012** `README.md` 작성
