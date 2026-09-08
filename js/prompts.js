@@ -598,6 +598,20 @@
                 }
             });
 
+            // T-103: 제목을 비워두면 무엇이 들어갈지 미리 보여준다.
+            // ★ value 가 아니라 placeholder 로 넣는다 — 값으로 채우면 사용자가
+            //   지우고 써야 해서 오히려 마찰이 늘고, 본문을 고칠 때마다
+            //   덮어쓸지 말지가 애매해진다. placeholder 는 절대 방해하지 않는다.
+            const titleInput = document.getElementById('prompt-title');
+            const contentInput = document.getElementById('prompt-content');
+            if (titleInput && contentInput) {
+                const defaultHint = titleInput.placeholder;
+                contentInput.addEventListener('input', function() {
+                    const suggestion = suggestTitle(contentInput.value.trim());
+                    titleInput.placeholder = suggestion ? `비워두면: ${suggestion}` : defaultHint;
+                });
+            }
+
             // 4.7 ~ 4.10: 폼 제출 처리
             form.addEventListener('submit', handleFormSubmit);
         }
@@ -662,11 +676,9 @@
             const editingId = document.getElementById('editing-prompt-id').value;
 
             // 4.8: 입력값 유효성 검사
-            if (!title) {
-                alert('제목을 입력해주세요.');
-                return;
-            }
-
+            // T-103: 제목은 선택 사항. 비우면 본문에서 만든다.
+            //   본문은 여전히 필수다 — 본문이 없으면 제목을 만들 근거도 없고,
+            //   본문 없는 프롬프트는 사전에 담을 이유가 없다.
             if (!content) {
                 alert('프롬프트 본문을 입력해주세요.');
                 return;
@@ -676,6 +688,10 @@
             const tags = tagsInput 
                 ? tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag)
                 : [];
+
+            // T-103: 제목 미입력 시 본문에서 자동 생성
+            const autoTitled = !title;
+            const finalTitle = title || suggestTitle(content) || '제목 없음';
 
             // T-009c-1: 실패 시 되돌릴 스냅샷
             const snapshotPrompts = [...allPrompts];
@@ -710,7 +726,7 @@
                 editedOriginal = { ...prompt };
 
                 // 프롬프트 업데이트
-                prompt.title = title;
+                prompt.title = finalTitle;
                 prompt.content = content;
                 prompt.category = category;
                 prompt.tags = tags;
@@ -726,14 +742,16 @@
                 }
 
                 console.log('프롬프트 수정 완료:', prompt);
-                successMessage = '프롬프트가 수정되었습니다! ✅';
+                successMessage = autoTitled
+                    ? '프롬프트가 수정되었습니다! ✅ (제목 자동 생성)'
+                    : '프롬프트가 수정되었습니다! ✅';
 
             } else {
                 // 추가 모드
                 // 4.9: 새 프롬프트 객체 생성
                 const newPrompt = {
                     id: newId(), // T-116: 같은 밀리초 충돌 방지
-                    title: title,
+                    title: finalTitle,
                     content: content,
                     category: category,
                     tags: tags,
@@ -752,7 +770,9 @@
                 allPrompts.unshift(newPrompt); // 맨 앞에 추가 (최신순)
 
                 console.log('새 프롬프트 추가 완료:', newPrompt);
-                successMessage = '프롬프트가 추가되었습니다! ✅';
+                successMessage = autoTitled
+                    ? '프롬프트가 추가되었습니다! ✅ (제목 자동 생성)'
+                    : '프롬프트가 추가되었습니다! ✅';
             }
 
             // 저장 — 이 함수는 프롬프트만 바꾼다 (즐겨찾기는 건드리지 않음)
