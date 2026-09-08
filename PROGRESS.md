@@ -112,7 +112,8 @@
 **목표: 서버 이식 비용을 미리 낮춘다. 이 단계가 전체에서 가장 중요.**
 
 > **진행 상황 (2026-09-08 기준)** — 커밋 `173d388` ~ `0a0d19e`
-> 완료: T-006 · T-007(a~i) · T-008 / **남음: T-009 · T-010 · T-012 · T-013**
+> 완료: T-006 · T-007(a~i) · T-008 · T-009(a~c) · T-010 · T-012
+> **남음: T-013 (Codex 최종 검수)**
 > 상세 [`docs/worklog/2026-09-08.md`](./docs/worklog/2026-09-08.md)
 
 - [x] GitHub 저장소 생성 (`prompt-dict`)
@@ -127,9 +128,10 @@
   - `js/main.js` — `DOMContentLoaded` 진입점 (**리스너 2개 유지**, 예외 격리)
   - ※ 최초안의 `js/references.js` 는 만들지 않음 — 참고자료 **기능 자체를 제거**
     (실사용 0건. `legacy/original.html` 과 git 히스토리에 보존)
-  - ※ 함수 **87개 → 73개**. 매 단계 `tools/fnmap.py` 이름별 본문 md5 대조로 무손실 확인
+  - ※ 함수 **87개 → 73개** (T-007 시점. T-010에서 죽은 함수 4개 제거 후 최종 69개).
+    매 단계 `tools/fnmap.py` 이름별 본문 md5 대조로 무손실 확인
 - [x] **저장 계층 추상화 — 인터페이스** (T-008)
-- [ ] **저장 계층 추상화 — 호출부 교체** (T-009 / T-010)
+- [x] **저장 계층 추상화 — 호출부 교체** (T-009a~c, T-010)
 
 ```js
 // js/storage.js — 어댑터만 교체하면 서버 전환 완료
@@ -146,11 +148,15 @@ const PromptStorage = {
 // 서버: ApiAdapter (fetch → FastAPI)
 ```
 
-`localStorage` 직접 호출 잔량 — `storage.js` 12 (어댑터 5 + 기존 함수 7),
-`search-history.js` 2, `ui.js` 2. T-010 완료 시 `storage.js` 안에만 남아야 한다.
+`localStorage` 직접 호출 — **`LocalStorageAdapter` 내부 4건뿐**
+(`getItem` ×2, `setItem`, `removeItem`). 앱 코드에는 0건.
 
 - [x] 분리 후 동작 확인 — 헤드리스 Chrome 실행: 미처리 예외 0건, 렌더링·초기화 정상
-- [x] 초기 커밋 + `CLAUDE.md` (`README.md` 는 T-012)
+- [x] 초기 커밋 + `CLAUDE.md` + `README.md`
+
+> **P0 코드 작업 완료. 남은 것은 T-013(Codex 최종 검수)뿐.**
+> 함수 87 → 69개(참고자료 14개 제거 + 죽은 저장 함수 4개 제거).
+> 저장 계층이 격리되어 P3에서 `PromptStorage.adapter` 만 교체하면 서버 전환이 된다.
 
 ### P1 — 버그 및 보안 수정
 

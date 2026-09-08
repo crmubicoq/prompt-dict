@@ -103,14 +103,30 @@ const PromptStorage = {
 > 읽기 3상태(없음 `null` / 파싱 실패 `throw` / 정상), 읽기 실패 시 쓰기 차단,
 > `removeAll` 은 가드 우회 → [`docs/devlog.md`](./docs/devlog.md) §4
 
-- [ ] **T-009** 호출부를 `PromptStorage` 경유로 교체
-      ※ `LocalStorageAdapter` 구현체는 T-008에서 이미 작성됨
-      ※ `initializeData` try/catch 부재도 이 태스크에서 함께 처리 (어댑터가 throw하므로)
-      ※ 손상 데이터 복구 UI는 T-115로 미룸 — 근거 [`docs/decisions/2026-09-08-decisions.md`](./docs/decisions/2026-09-08-decisions.md) §6
-- [ ] **T-010** 기존 함수 7개 제거 (`loadFromLocalStorage` 죽은 코드 포함)
-      완료 조건: `grep -rn "localStorage" js/` 결과가 `storage.js` 안에만 존재
+- [x] **T-009** 호출부를 `PromptStorage` 경유로 교체
+      ※ 계획서상 단일 태스크였으나 Codex 검수 지적을 반영하며 5단계로 나눠 진행
+      ※ `initializeData` try/catch 부재도 함께 처리 / 손상 복구 UI는 T-115로 미룸
+      — 근거 [`docs/decisions/2026-09-08-decisions.md`](./docs/decisions/2026-09-08-decisions.md) §6
+  - [x] **T-009a** 어댑터 타입 검증·실패 규약 보강 — `63dd66e`
+        `JSON.parse('null')` 이 "키 없음"으로 오인되던 구멍, 직렬화 실패 규약,
+        `removeAll` 성공 시에만 가드 해제
+  - [x] **T-009b** 읽기 경로 전환 (읽기 5건) — `e93567c`
+        초기화 순서 재배치(읽기 전부 → 대입 → 첫 쓰기), 리스너1만 async,
+        초기화 실패 시 렌더링 중단. **리스너2는 동기 유지**
+  - [x] **T-009c-1** 진입점이 안전한 7곳 — `09b2896`
+        스냅샷 롤백 패턴 확립, 필요한 것만 저장, 토스트를 저장 뒤로 이동
+  - [x] **T-009c-2** 인라인 `onclick` 경유 5곳 — `7f4aebd`
+        본문 try/catch 로 Promise 누출 차단, 제자리 변경 개별 복원
+  - [x] **T-009c-3** `FileReader` 콜백 3곳 + `initializeData` 기본값 저장 2건 — `a11997d`
+        기본값 저장 실패는 롤백 대상이 아니라 초기화 실패 → `throw`
+- [x] **T-010** 죽은 저장 함수 제거 — `e4ed724`
+      `loadFromLocalStorage` · `saveToLocalStorage` · `saveCategories` (storage.js)
+      + `saveSearchHistory` (**search-history.js** — 최초안의 "기존 함수 7개" 목록 밖이라
+      T-009c-3 시점에 범위를 정정해 포함시킴)
+      완료 조건 충족: `grep -rn "localStorage\." js/` = **`LocalStorageAdapter` 내부 4건뿐**
+      (`getItem` ×2, `setItem`, `removeItem`). 함수 73 → 69
 - [x] **T-011** `CLAUDE.md` 작성 (프로젝트 개요·구조·금지사항) — `5937a5d`, 이후 계속 갱신
-- [ ] **T-012** `README.md` 작성
+- [x] **T-012** `README.md` 작성 — `82ba427`
 - [ ] **T-013** Codex 검수 → 커밋 → **P0 완료**
 
 ---
