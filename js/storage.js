@@ -223,13 +223,28 @@
                 return true;
             },
 
+            // --- 어댑터 호출 정규화 (T-011b) ---
+            // ★ 어댑터가 reject 하면 호출부의 `!== true` 롤백 분기를 통째로 건너뛴다.
+            //   그러면 저장은 실패했는데 메모리에는 변경이 남고, 이후 다른 저장이
+            //   성공할 때 그 변경까지 뒤늦게 함께 저장된다.
+            //   공개 규약(성공 true / 실패·차단 false)을 파사드에서 보장한다.
+            //   ※ 읽기는 정규화하지 않는다 — 손상은 throw 로 알리는 것이 규약이다.
+            async _safeWrite(label, run) {
+                try {
+                    return await run();
+                } catch (error) {
+                    console.error('[PromptStorage] ' + label + ' 저장 중 예외 — false 로 처리합니다:', error);
+                    return false;
+                }
+            },
+
             // --- 프롬프트 ---
             async getPrompts() {
                 return this.adapter.getPrompts();
             },
             async savePrompts(list) {
                 if (this._blockedByReadFailure(STORAGE_KEY, '프롬프트')) return false;
-                return this.adapter.savePrompts(list);
+                return this._safeWrite('프롬프트', () => this.adapter.savePrompts(list));
             },
 
             // --- 즐겨찾기 ---
@@ -238,7 +253,7 @@
             },
             async saveFavorites(set) {
                 if (this._blockedByReadFailure(FAVORITES_KEY, '즐겨찾기')) return false;
-                return this.adapter.saveFavorites(set);
+                return this._safeWrite('즐겨찾기', () => this.adapter.saveFavorites(set));
             },
 
             // --- 카테고리 ---
@@ -247,7 +262,7 @@
             },
             async saveCategories(list) {
                 if (this._blockedByReadFailure(CATEGORIES_KEY, '카테고리')) return false;
-                return this.adapter.saveCategories(list);
+                return this._safeWrite('카테고리', () => this.adapter.saveCategories(list));
             },
 
             // --- 검색 기록 ---
@@ -256,7 +271,7 @@
             },
             async saveSearchHistory(list) {
                 if (this._blockedByReadFailure(SEARCH_HISTORY_KEY, '검색 기록')) return false;
-                return this.adapter.saveSearchHistory(list);
+                return this._safeWrite('검색 기록', () => this.adapter.saveSearchHistory(list));
             },
 
             // --- 평문 설정 (_theme 등) ---
@@ -266,14 +281,14 @@
             },
             async setSetting(key, value) {
                 if (this._blockedByReadFailure(key, '설정(' + key + ')')) return false;
-                return this.adapter.setSetting(key, value);
+                return this._safeWrite('설정(' + key + ')', () => this.adapter.setSetting(key, value));
             },
 
             // --- 전체 삭제 (T-115 왕복 테스트 / 손상 복구용) ---
             // 손상 상태에서 벗어나는 유일한 경로이므로 쓰기 가드를 적용하지 않는다.
             // 키 단위 가드와 달리 여기서는 전체를 리셋한다 — 전부 지웠으니 잠글 이유가 없다.
             async removeAll() {
-                const result = await this.adapter.removeAll();
+                const result = await this._safeWrite('전체 삭제', () => this.adapter.removeAll());
 
                 // 어댑터가 실패했으면 가드를 풀지 않는다.
                 // 지우지도 못한 채 쓰기 차단만 해제하면 손상된 원본을 덮어쓰게 된다.
