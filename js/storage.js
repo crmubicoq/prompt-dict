@@ -296,15 +296,22 @@
             categories = needsDefaultCategories ? [...defaultCategories] : storedCategories;
 
             // --- 3) 그다음에 기본값 저장 ---
+            // 여기서 실패하면 되돌릴 이전 상태가 없다 — 비어 있어서 쓰는 것이다.
+            // 롤백 대신 초기화 실패로 올려 main.js 리스너1이 렌더링을 중단하게 한다.
             if (needsSamplePrompts) {
-                saveToLocalStorage();
+                // 샘플 주입은 favoriteIds 를 건드리지 않으므로 프롬프트만 저장한다
+                if (await PromptStorage.savePrompts(allPrompts) !== true) {
+                    throw new Error('샘플 데이터를 저장하지 못했습니다.');
+                }
                 console.log('샘플 데이터 로드 완료 ✅');
             } else {
                 console.log(`저장된 프롬프트 ${allPrompts.length}개 로드 완료 ✅`);
             }
 
             if (needsDefaultCategories) {
-                saveCategories();
+                if (await PromptStorage.saveCategories(categories) !== true) {
+                    throw new Error('기본 카테고리를 저장하지 못했습니다.');
+                }
             }
             console.log(`카테고리 ${categories.length}개 로드 완료 ✅`);
         }

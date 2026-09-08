@@ -69,8 +69,10 @@
         // JSON 파일 파싱
         function parseJSONFile(file) {
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 try {
+                    // T-009c-3: 실패 시 되돌릴 스냅샷 (요소 객체는 새로 만들어 추가만 한다)
+                    const snapshotPrompts = [...allPrompts];
                     const data = JSON.parse(e.target.result);
                     
                     let prompts = [];
@@ -116,7 +118,14 @@
                     });
 
                     if (addedCount > 0) {
-                        saveToLocalStorage();
+                        // T-009c-3: 즐겨찾기는 바뀌지 않으므로 프롬프트만 저장
+                        if (await PromptStorage.savePrompts(allPrompts) !== true) {
+                            allPrompts = snapshotPrompts;
+                            renderPromptList(allPrompts);
+                            showToast('저장 실패 — 불러오기를 되돌렸습니다 ❌');
+                            return;
+                        }
+
                         renderPromptList(allPrompts);
                         
                         // 메시지 생성
@@ -142,8 +151,10 @@
         // CSV 파일 파싱
         function parseCSVFile(file) {
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 try {
+                    // T-009c-3: 실패 시 되돌릴 스냅샷 (요소 객체는 새로 만들어 추가만 한다)
+                    const snapshotPrompts = [...allPrompts];
                     const text = e.target.result;
                     const lines = text.split('\n').filter(line => line.trim());
                     
@@ -190,7 +201,14 @@
                     }
 
                     if (addedCount > 0) {
-                        saveToLocalStorage();
+                        // T-009c-3: 즐겨찾기는 바뀌지 않으므로 프롬프트만 저장
+                        if (await PromptStorage.savePrompts(allPrompts) !== true) {
+                            allPrompts = snapshotPrompts;
+                            renderPromptList(allPrompts);
+                            showToast('저장 실패 — 불러오기를 되돌렸습니다 ❌');
+                            return;
+                        }
+
                         renderPromptList(allPrompts);
                         
                         // 메시지 생성
@@ -216,8 +234,10 @@
         // TXT 파일 파싱 (간단한 형식)
         function parseTXTFile(file) {
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 try {
+                    // T-009c-3: 실패 시 되돌릴 스냅샷 (요소 객체는 새로 만들어 추가만 한다)
+                    const snapshotPrompts = [...allPrompts];
                     const text = e.target.result;
                     
                     // --- 구분자로 프롬프트 나누기
@@ -245,7 +265,14 @@
                     });
 
                     if (addedCount > 0) {
-                        saveToLocalStorage();
+                        // T-009c-3: 즐겨찾기는 바뀌지 않으므로 프롬프트만 저장
+                        if (await PromptStorage.savePrompts(allPrompts) !== true) {
+                            allPrompts = snapshotPrompts;
+                            renderPromptList(allPrompts);
+                            showToast('저장 실패 — 불러오기를 되돌렸습니다 ❌');
+                            return;
+                        }
+
                         renderPromptList(allPrompts);
                         showToast(`${addedCount}개의 프롬프트 추가 완료! ✅`);
                         console.log(`${addedCount}개 프롬프트 추가됨 (TXT)`);
