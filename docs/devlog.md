@@ -587,3 +587,59 @@ HTMLAnchorElement.prototype.click = function () { window.__downloads.push(this.d
 
 → 기계는 "바뀌었는가"를 보고, 사람은 "이 설계가 맞는가"를 본다. 역할이 다르다.
 그리고 **검수에서 나온 지적은 코드뿐 아니라 계획서에도 반영**해야 같은 실수가 반복되지 않는다.
+
+### 6.1 ★ 테스트가 실제 사용자 경로를 우회하면 통과해도 아무것도 증명하지 못한다
+
+T-101에서 "카테고리 필수 검증 해제"를 하고 **45/45 통과**를 받았다.
+그런데 실제 사용자는 여전히 카테고리를 골라야 했다.
+
+```html
+<select id="prompt-category" required>   <!-- 이게 남아 있었다 -->
+```
+
+JS 쪽 `if (!category) { alert(...); return; }` 만 지웠고, **HTML 의 `required` 는 그대로**였다.
+브라우저가 제출 자체를 막으므로 JS 는 실행되지도 않는다.
+
+**테스트가 이걸 놓친 이유:**
+
+```js
+form.dispatchEvent(new Event('submit'))   // ✗ 네이티브 폼 검증을 건너뛴다
+form.requestSubmit()                      // ✓ 검증을 거쳐 제출한다
+```
+
+`dispatchEvent` 는 그냥 이벤트를 쏘는 것이라 제약 검증(constraint validation)을 타지 않는다.
+그래서 테스트는 **"JS 코드가 바뀌었다"는 것만 증명**하고 통과했다.
+
+#### 일반화
+
+**테스트가 실제 진입 경로와 다른 경로를 타면, 그 테스트는
+"코드가 바뀌었다"는 증명은 되지만 "기능이 동작한다"는 증명은 안 된다.**
+
+같은 이유로 T-009c-2에서는 인라인 `onclick` 함수를 **직접 호출하지 않고
+실제 버튼을 클릭**해서 검증했다. 직접 호출하면 `onclick` 속성 문자열이
+잘못됐어도(따옴표 누락 등) 테스트는 통과한다.
+
+| 검증 대상 | ✗ 우회하는 방법 | ✓ 실제 경로 |
+|---|---|---|
+| 폼 제출 | `dispatchEvent(new Event('submit'))` | `form.requestSubmit()` / 제출 버튼 클릭 |
+| 인라인 `onclick` | 함수를 직접 호출 | `querySelector('[onclick^="..."]').click()` |
+| 카드 클릭 | `openDetailModal(id)` 호출 | `card.click()` |
+| 파일 업로드 | 파서 함수에 문자열 전달 | `File` 객체를 만들어 `FileReader` 경유 |
+
+경로를 우회할수록 테스트는 빠르고 안정적이지만, **검증 범위가 그만큼 줄어든다.**
+빠른 단위 검증과 실제 경로 검증을 **둘 다** 두는 편이 낫다 —
+`suggestTitle` 같은 순수 함수는 직접 호출로 케이스를 많이 돌리고,
+"폼에 넣고 저장한다"는 경로는 `requestSubmit` 으로 한 번 태운다.
+
+#### 곁들여: 같은 규칙이 두 겹으로 걸려 있을 수 있다
+
+입력 제약은 **HTML 속성과 JS 검증에 이중으로** 존재하기 쉽다.
+
+```
+required / minlength / pattern / type="email"   ← 브라우저가 강제
+if (!value) { alert(...); return; }             ← JS 가 강제
+```
+
+한쪽만 고치면 **반쪽만 고쳐진다.** 그리고 어느 쪽이 남았는지는
+우회 경로로 테스트하는 한 드러나지 않는다.
+검증 규칙을 바꿀 때는 **HTML 과 JS 를 같이 grep** 한다.
