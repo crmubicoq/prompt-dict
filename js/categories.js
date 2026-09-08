@@ -187,129 +187,195 @@
             container.innerHTML = html;
         }
 
-        function deleteCategory(index) {
-            const category = categories[index];
-            
-            // 프롬프트 개수 확인
-            const promptCount = allPrompts.filter(p => p.category === category.name).length;
-            
-            // 1차 확인
-            const firstConfirm = confirm(
-                `⚠️ "${category.name}" 카테고리를 삭제하시겠습니까?\n\n` +
-                `• 이 카테고리의 프롬프트: ${promptCount}개\n` +
-                `• 모든 프롬프트는 "기타"로 이동됩니다\n\n` +
-                `정말 삭제하시겠습니까?`
-            );
-            
-            if (!firstConfirm) {
-                return;
-            }
+        // T-009c-2: 인라인 onclick 호출 — Promise 누출 방지 try/catch
+        async function deleteCategory(index) {
+            try {
+                const category = categories[index];
 
-            // 2차 확인 (이중 안전장치)
-            const secondConfirm = confirm(
-                `🔴 최종 확인\n\n` +
-                `"${category.name}" 카테고리를 삭제하면 복구할 수 없습니다.\n\n` +
-                `계속하시겠습니까?`
-            );
-            
-            if (!secondConfirm) {
-                return;
-            }
+                // 프롬프트 개수 확인
+                const promptCount = allPrompts.filter(p => p.category === category.name).length;
 
-            // 해당 카테고리의 프롬프트를 "기타"로 변경
-            allPrompts.forEach(prompt => {
-                if (prompt.category === category.name) {
-                    prompt.category = '기타';
+                // 1차 확인
+                const firstConfirm = confirm(
+                    `⚠️ "${category.name}" 카테고리를 삭제하시겠습니까?\n\n` +
+                    `• 이 카테고리의 프롬프트: ${promptCount}개\n` +
+                    `• 모든 프롬프트는 "기타"로 이동됩니다\n\n` +
+                    `정말 삭제하시겠습니까?`
+                );
+
+                if (!firstConfirm) {
+                    return;
                 }
-            });
 
-            // 카테고리 삭제
-            categories.splice(index, 1);
-            
-            // 저장
-            saveCategories();
-            saveToLocalStorage();
+                // 2차 확인 (이중 안전장치)
+                const secondConfirm = confirm(
+                    `🔴 최종 확인\n\n` +
+                    `"${category.name}" 카테고리를 삭제하면 복구할 수 없습니다.\n\n` +
+                    `계속하시겠습니까?`
+                );
 
-            // UI 업데이트
-            renderCategoryList();
-            renderCategoryDropdown();
-            renderCategoryManageList();
-            applyFilters(); // 현재 필터 다시 적용
+                if (!secondConfirm) {
+                    return;
+                }
 
-            showToast(`카테고리 "${category.name}" 삭제 완료! ✅`);
-            console.log('카테고리 삭제:', category.name);
+                // 실패 시 되돌릴 스냅샷
+                // ★ 프롬프트는 객체를 제자리에서 바꾸므로 배열 복사로는 못 되돌린다.
+                //   바뀐 프롬프트와 원래 카테고리 이름을 따로 기록한다.
+                const snapshotCategories = [...categories];
+                const oldCategoryName = category.name;
+                const changedPrompts = [];
+
+                // 해당 카테고리의 프롬프트를 "기타"로 변경
+                allPrompts.forEach(p => {
+                    if (p.category === oldCategoryName) {
+                        changedPrompts.push(p);
+                        p.category = '기타';
+                    }
+                });
+
+                // 카테고리 삭제
+                categories.splice(index, 1);
+
+                // 저장 — 카테고리와 프롬프트 둘 다 바뀌었다
+                const okCategories = await PromptStorage.saveCategories(categories);
+                const okPrompts = okCategories === true
+                    ? await PromptStorage.savePrompts(allPrompts)
+                    : false;
+
+                if (okCategories !== true || okPrompts !== true) {
+                    categories = snapshotCategories;
+                    changedPrompts.forEach(p => { p.category = oldCategoryName; });
+
+                    // 카테고리만 저장된 상태면 되돌린 값으로 다시 써 둔다 (최선 노력)
+                    if (okCategories === true) {
+                        await PromptStorage.saveCategories(categories);
+                    }
+
+                    renderCategoryList();
+                    renderCategoryDropdown();
+                    renderCategoryManageList();
+                    applyFilters();
+                    showToast('저장 실패 — 변경을 되돌렸습니다 ❌');
+                    return;
+                }
+
+                // UI 업데이트
+                renderCategoryList();
+                renderCategoryDropdown();
+                renderCategoryManageList();
+                applyFilters(); // 현재 필터 다시 적용
+
+                showToast(`카테고리 "${oldCategoryName}" 삭제 완료! ✅`);
+                console.log('카테고리 삭제:', oldCategoryName);
+            } catch (error) {
+                console.error('[카테고리] 삭제 실패:', error);
+                showToast('카테고리 삭제 중 오류가 발생했습니다 ❌');
+            }
         }
 
         // 카테고리 수정 함수
-        function editCategory(index) {
-            const category = categories[index];
-            
-            // 프롬프트 개수 확인
-            const promptCount = allPrompts.filter(p => p.category === category.name).length;
-            
-            // 확인 메시지
-            const shouldEdit = confirm(
-                `⚠️ "${category.name}" 카테고리를 수정하시겠습니까?\n\n` +
-                `• 이 카테고리의 프롬프트: ${promptCount}개\n` +
-                `• 모든 프롬프트의 카테고리가 함께 변경됩니다\n\n` +
-                `계속하시겠습니까?`
-            );
-            
-            if (!shouldEdit) {
-                return;
-            }
+        // T-009c-2: 인라인 onclick 호출 — Promise 누출 방지 try/catch
+        async function editCategory(index) {
+            try {
+                const category = categories[index];
 
-            // 새 이모지 입력
-            const newEmoji = prompt('새 이모지를 입력하세요 (취소하면 기존 유지)', category.emoji);
-            if (newEmoji === null) {
-                return; // 취소
-            }
+                // 프롬프트 개수 확인
+                const promptCount = allPrompts.filter(p => p.category === category.name).length;
 
-            // 새 이름 입력
-            const newName = prompt('새 카테고리 이름을 입력하세요 (취소하면 기존 유지)', category.name);
-            if (newName === null) {
-                return; // 취소
-            }
+                // 확인 메시지
+                const shouldEdit = confirm(
+                    `⚠️ "${category.name}" 카테고리를 수정하시겠습니까?\n\n` +
+                    `• 이 카테고리의 프롬프트: ${promptCount}개\n` +
+                    `• 모든 프롬프트의 카테고리가 함께 변경됩니다\n\n` +
+                    `계속하시겠습니까?`
+                );
 
-            const trimmedName = newName.trim();
-            if (!trimmedName) {
-                alert('카테고리 이름을 입력해주세요.');
-                return;
-            }
-
-            // 중복 검사 (자기 자신 제외)
-            const exists = categories.some((cat, i) => i !== index && cat.name === trimmedName);
-            if (exists) {
-                alert('이미 존재하는 카테고리 이름입니다.');
-                return;
-            }
-
-            // 기존 이름 저장
-            const oldName = category.name;
-
-            // 카테고리 수정
-            category.emoji = newEmoji.trim() || category.emoji;
-            category.name = trimmedName;
-
-            // 모든 프롬프트의 카테고리 이름 변경
-            allPrompts.forEach(prompt => {
-                if (prompt.category === oldName) {
-                    prompt.category = trimmedName;
+                if (!shouldEdit) {
+                    return;
                 }
-            });
 
-            // 저장
-            saveCategories();
-            saveToLocalStorage();
+                // 새 이모지 입력
+                const newEmoji = prompt('새 이모지를 입력하세요 (취소하면 기존 유지)', category.emoji);
+                if (newEmoji === null) {
+                    return; // 취소
+                }
 
-            // UI 업데이트
-            renderCategoryList();
-            renderCategoryDropdown();
-            renderCategoryManageList();
-            applyFilters(); // 현재 필터 다시 적용
+                // 새 이름 입력
+                const newName = prompt('새 카테고리 이름을 입력하세요 (취소하면 기존 유지)', category.name);
+                if (newName === null) {
+                    return; // 취소
+                }
 
-            showToast(`카테고리 "${oldName}" → "${trimmedName}" 수정 완료! ✅`);
-            console.log('카테고리 수정:', oldName, '→', trimmedName);
+                const trimmedName = newName.trim();
+                if (!trimmedName) {
+                    alert('카테고리 이름을 입력해주세요.');
+                    return;
+                }
+
+                // 중복 검사 (자기 자신 제외)
+                const exists = categories.some((cat, i) => i !== index && cat.name === trimmedName);
+                if (exists) {
+                    alert('이미 존재하는 카테고리 이름입니다.');
+                    return;
+                }
+
+                // 기존 이름 저장
+                const oldName = category.name;
+
+                // 실패 시 되돌릴 스냅샷
+                // ★ 배열 얕은 복사로는 안 된다 — category 객체와 프롬프트 객체를
+                //   제자리에서 바꾸므로, 바뀌는 값들을 따로 기록해 둔다.
+                const snapshotCategory = { emoji: category.emoji, name: category.name };
+                const changedPrompts = [];
+
+                // 카테고리 수정
+                category.emoji = newEmoji.trim() || category.emoji;
+                category.name = trimmedName;
+
+                // 모든 프롬프트의 카테고리 이름 변경
+                allPrompts.forEach(p => {
+                    if (p.category === oldName) {
+                        changedPrompts.push(p);
+                        p.category = trimmedName;
+                    }
+                });
+
+                // 저장 — 카테고리와 프롬프트 둘 다 바뀌었다
+                const okCategories = await PromptStorage.saveCategories(categories);
+                const okPrompts = okCategories === true
+                    ? await PromptStorage.savePrompts(allPrompts)
+                    : false;
+
+                if (okCategories !== true || okPrompts !== true) {
+                    category.emoji = snapshotCategory.emoji;
+                    category.name = snapshotCategory.name;
+                    changedPrompts.forEach(p => { p.category = oldName; });
+
+                    // 카테고리만 저장된 상태면 되돌린 값으로 다시 써 둔다 (최선 노력)
+                    if (okCategories === true) {
+                        await PromptStorage.saveCategories(categories);
+                    }
+
+                    renderCategoryList();
+                    renderCategoryDropdown();
+                    renderCategoryManageList();
+                    applyFilters();
+                    showToast('저장 실패 — 변경을 되돌렸습니다 ❌');
+                    return;
+                }
+
+                // UI 업데이트
+                renderCategoryList();
+                renderCategoryDropdown();
+                renderCategoryManageList();
+                applyFilters(); // 현재 필터 다시 적용
+
+                showToast(`카테고리 "${oldName}" → "${trimmedName}" 수정 완료! ✅`);
+                console.log('카테고리 수정:', oldName, '→', trimmedName);
+            } catch (error) {
+                console.error('[카테고리] 수정 실패:', error);
+                showToast('카테고리 수정 중 오류가 발생했습니다 ❌');
+            }
         }
 
         // 카테고리 검증 함수

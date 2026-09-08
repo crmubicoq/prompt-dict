@@ -223,22 +223,39 @@
         }
 
         // 즐겨찾기 토글 함수 (Phase 11에서 완성 예정)
-        function toggleFavorite(id) {
-            if (favoriteIds.has(id)) {
-                favoriteIds.delete(id);
-            } else {
-                favoriteIds.add(id);
+        // T-009c-2: 인라인 onclick 에서 호출되므로 반환 Promise 를 받는 곳이 없다.
+        // 본문 전체를 try/catch 로 감싸 예외가 unhandledrejection 으로 새지 않게 한다.
+        async function toggleFavorite(id) {
+            try {
+                // 실패 시 되돌릴 스냅샷
+                const snapshotFavorites = new Set(favoriteIds);
+
+                if (favoriteIds.has(id)) {
+                    favoriteIds.delete(id);
+                } else {
+                    favoriteIds.add(id);
+                }
+
+                // 즐겨찾기만 바뀐다 — 프롬프트는 저장할 필요가 없다
+                if (await PromptStorage.saveFavorites(favoriteIds) !== true) {
+                    favoriteIds = snapshotFavorites;
+                    applyFilters();
+                    showToast('저장 실패 — 변경을 되돌렸습니다 ❌');
+                    return;
+                }
+
+                // 현재 필터 유지하면서 새로고침
+                applyFilters();
+
+                // 토스트 메시지
+                const isFavorite = favoriteIds.has(id);
+                showToast(isFavorite ? '즐겨찾기 추가! ⭐' : '즐겨찾기 해제! ☆');
+
+                console.log('즐겨찾기 토글:', id, isFavorite ? '추가' : '해제');
+            } catch (error) {
+                console.error('[즐겨찾기] 처리 실패:', error);
+                showToast('즐겨찾기 처리 중 오류가 발생했습니다 ❌');
             }
-            saveToLocalStorage();
-            
-            // 현재 필터 유지하면서 새로고침
-            applyFilters();
-            
-            // 토스트 메시지
-            const isFavorite = favoriteIds.has(id);
-            showToast(isFavorite ? '즐겨찾기 추가! ⭐' : '즐겨찾기 해제! ☆');
-            
-            console.log('즐겨찾기 토글:', id, isFavorite ? '추가' : '해제');
         }
 
         // ========================================

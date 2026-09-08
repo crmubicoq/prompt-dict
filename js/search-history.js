@@ -21,24 +21,39 @@
         }
 
         // 검색 기록 추가
-        function addToSearchHistory(query) {
-            if (!query || query.trim().length === 0) return;
-            
-            const trimmedQuery = query.trim();
-            
-            // 중복 제거 (이미 있으면 제거 후 맨 앞에 추가)
-            searchHistory = searchHistory.filter(item => item !== trimmedQuery);
-            
-            // 맨 앞에 추가
-            searchHistory.unshift(trimmedQuery);
-            
-            // 최대 개수 유지
-            if (searchHistory.length > MAX_SEARCH_HISTORY) {
-                searchHistory = searchHistory.slice(0, MAX_SEARCH_HISTORY);
+        // T-009c-2: keydown 핸들러에서 호출되어 Promise 를 받는 곳이 없다
+        async function addToSearchHistory(query) {
+            try {
+                if (!query || query.trim().length === 0) return;
+
+                const trimmedQuery = query.trim();
+
+                // 실패 시 되돌릴 스냅샷 (filter + unshift + slice 3연산)
+                const snapshotHistory = [...searchHistory];
+
+                // 중복 제거 (이미 있으면 제거 후 맨 앞에 추가)
+                searchHistory = searchHistory.filter(item => item !== trimmedQuery);
+
+                // 맨 앞에 추가
+                searchHistory.unshift(trimmedQuery);
+
+                // 최대 개수 유지
+                if (searchHistory.length > MAX_SEARCH_HISTORY) {
+                    searchHistory = searchHistory.slice(0, MAX_SEARCH_HISTORY);
+                }
+
+                if (await PromptStorage.saveSearchHistory(searchHistory) !== true) {
+                    searchHistory = snapshotHistory;
+                    renderSearchHistory();
+                    showToast('저장 실패 — 변경을 되돌렸습니다 ❌');
+                    return;
+                }
+
+                renderSearchHistory();
+            } catch (error) {
+                console.error('[검색 기록] 추가 실패:', error);
+                showToast('검색 기록 저장 중 오류가 발생했습니다 ❌');
             }
-            
-            saveSearchHistory();
-            renderSearchHistory();
         }
 
         // 검색 기록 렌더링
@@ -74,10 +89,25 @@
         }
 
         // 검색 기록 삭제
-        function removeFromSearchHistory(index) {
-            searchHistory.splice(index, 1);
-            saveSearchHistory();
-            renderSearchHistory();
+        // T-009c-2: 인라인 onclick 호출 — Promise 누출 방지
+        async function removeFromSearchHistory(index) {
+            try {
+                const snapshotHistory = [...searchHistory];
+
+                searchHistory.splice(index, 1);
+
+                if (await PromptStorage.saveSearchHistory(searchHistory) !== true) {
+                    searchHistory = snapshotHistory;
+                    renderSearchHistory();
+                    showToast('저장 실패 — 변경을 되돌렸습니다 ❌');
+                    return;
+                }
+
+                renderSearchHistory();
+            } catch (error) {
+                console.error('[검색 기록] 삭제 실패:', error);
+                showToast('검색 기록 삭제 중 오류가 발생했습니다 ❌');
+            }
         }
 
         // 검색 입력 감지 (Enter 키)
