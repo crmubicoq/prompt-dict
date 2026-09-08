@@ -42,11 +42,12 @@
         // Phase 12: 다크모드 (Task 12.1 ~ 12.7)
         // ========================================
 
-        function setupThemeToggle() {
+        // T-009b: 읽기만 PromptStorage 경유. 아래 토글 핸들러의 쓰기는 T-009c
+        async function setupThemeToggle() {
             const themeBtn = document.getElementById('theme-toggle');
             
             // 페이지 로드 시 저장된 테마 적용
-            const savedTheme = localStorage.getItem(THEME_KEY) || 'light';
+            const savedTheme = (await PromptStorage.getSetting(THEME_KEY)) || 'light';
             if (savedTheme === 'dark') {
                 document.body.classList.add('dark-mode');
                 themeBtn.textContent = '☀️';

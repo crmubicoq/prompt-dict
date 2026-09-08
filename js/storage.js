@@ -270,32 +270,40 @@
         };
 
         // 3.5: 데이터 초기화 함수
-        function initializeData() {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            
-            if (!stored || JSON.parse(stored).length === 0) {
-                // 저장된 데이터가 없으면 샘플 데이터 사용
-                allPrompts = [...sampleData];
+        // T-009b: 읽기만 PromptStorage 경유. 쓰기는 아직 기존 함수 (T-009c에서 교체)
+        //
+        // ★ 순서 — 관련 읽기를 전부 끝낸 뒤에 첫 쓰기를 한다.
+        //   saveToLocalStorage() 는 프롬프트와 즐겨찾기를 함께 저장한다.
+        //   즐겨찾기를 읽기 전에 이걸 호출하면, 즐겨찾기가 손상됐을 때
+        //   실패 가드가 서기도 전에 빈 favoriteIds 로 원본을 덮어쓴다.
+        async function initializeData() {
+            // --- 1) 읽기: 쓰기 전에 전부 끝낸다 ---
+            const storedPrompts    = await PromptStorage.getPrompts();
+            const storedFavorites  = await PromptStorage.getFavorites();
+            const storedCategories = await PromptStorage.getCategories();
+
+            // --- 2) 검증 및 전역 상태 대입 ---
+            // 키 없음(null)과 저장된 빈 배열([]) 모두 "샘플 필요"로 본다 (기존 동작 유지)
+            const needsSamplePrompts = !storedPrompts || storedPrompts.length === 0;
+            allPrompts = needsSamplePrompts ? [...sampleData] : storedPrompts;
+
+            if (storedFavorites) {
+                favoriteIds = new Set(storedFavorites);
+            }
+
+            // 카테고리는 키가 없을 때만 기본값. 저장된 빈 배열은 존중한다 (기존 동작 유지)
+            const needsDefaultCategories = storedCategories === null;
+            categories = needsDefaultCategories ? [...defaultCategories] : storedCategories;
+
+            // --- 3) 그다음에 기본값 저장 ---
+            if (needsSamplePrompts) {
                 saveToLocalStorage();
                 console.log('샘플 데이터 로드 완료 ✅');
             } else {
-                // 저장된 데이터가 있으면 불러오기
-                allPrompts = JSON.parse(stored);
                 console.log(`저장된 프롬프트 ${allPrompts.length}개 로드 완료 ✅`);
             }
 
-            // 즐겨찾기 불러오기
-            const storedFavorites = localStorage.getItem(FAVORITES_KEY);
-            if (storedFavorites) {
-                favoriteIds = new Set(JSON.parse(storedFavorites));
-            }
-
-            // 카테고리 불러오기 (없으면 기본값 사용)
-            const storedCategories = localStorage.getItem(CATEGORIES_KEY);
-            if (storedCategories) {
-                categories = JSON.parse(storedCategories);
-            } else {
-                categories = [...defaultCategories];
+            if (needsDefaultCategories) {
                 saveCategories();
             }
             console.log(`카테고리 ${categories.length}개 로드 완료 ✅`);
