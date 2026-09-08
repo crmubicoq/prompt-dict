@@ -462,6 +462,72 @@ get isReadFailed() { return this.failedKeys.size > 0; }
 > 검증을 짜다가 이걸 몰라 기댓값을 틀리게 잡았다. 세 키를 동시에 손상시키면
 > `failedKeys` 가 3개일 거라 예상했지만 실제로는 첫 실패 키 1개뿐이었다.
 
+### 4.16 ★ 브라우저 API 의 보안 컨텍스트 제약
+
+`crypto.randomUUID()` 는 **보안 컨텍스트 전용**이다 — `https`, `localhost`, 그리고 `file://`.
+
+개발 중에는 `file://` 로 열기 때문에 멀쩡히 동작한다. 그런데 **http 로 서비스하는 순간
+`undefined` 가 되어 조용히 깨진다.** 이 프로젝트는 P4에서 `http:8807` 로 올릴 예정이라
+그대로 뒀으면 배포 시점에 ID 생성이 통째로 멈췄을 것이다.
+
+```js
+if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+}
+// getRandomValues 는 비보안 컨텍스트에서도 쓸 수 있다
+if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;   // version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;   // variant 10
+    // ... hex 로 조립
+}
+throw new Error('이 브라우저에서는 안전한 ID를 생성할 수 없습니다.');
+```
+
+**`Math.random` 으로 떨어뜨리지 않는다.** 충돌 회피가 목적인데 약한 난수로 대체하면
+같은 문제가 조용히 남는다. 둘 다 없으면 `throw` 한다 — 조용한 실패보다 낫다.
+
+→ **배포 환경의 프로토콜을 미리 확인한다.** 보안 컨텍스트를 요구하는 API 는
+`crypto.subtle`, `navigator.clipboard`, `getUserMedia`, Service Worker 등 여럿이다.
+`file://` 에서 된다고 http 에서도 된다는 보장이 없다.
+
+> 참고: `copyToClipboard` 가 `navigator.clipboard` 실패 시 `fallbackCopy` 로 떨어지는
+> 구조인 것도 같은 이유다. 그쪽은 이미 폴백이 있었다.
+
+### 4.17 ★ 식별자 타입을 바꾸면 파싱·비교 코드가 함께 깨진다
+
+`Date.now()` → UUID 전환은 "생성 지점 5곳만 바꾸면 되는" 작업처럼 보였다.
+실제로는 **읽는 쪽이 더 많았다.**
+
+```js
+const id = parseInt(this.dataset.id);   // UUID → NaN
+```
+
+`parseInt` 4곳이 전부 `NaN` 이 되어 카드 클릭·수정 대상 조회·전체 선택·
+체크박스 동기화가 한꺼번에 실패한다. 생성 지점만 고치고 넘어갔다면 앱이 통째로 깨졌다.
+
+인라인 `onclick` 도 함께 깨진다:
+
+```html
+onclick="toggleFavorite(${prompt.id})"     <!-- toggleFavorite(a3f2-9b1c-…) → 구문 오류 -->
+onclick="toggleFavorite('${prompt.id}')"   <!-- 따옴표 필요 -->
+```
+
+숫자일 때는 따옴표가 없어도 됐기 때문에 드러나지 않던 문제다.
+
+→ **타입을 바꿀 때는 생성 지점이 아니라 소비 지점을 전수 조사한다.**
+
+| 찾을 것 | 이유 |
+|---|---|
+| `parseInt` / `Number(` / `+id` | 숫자 변환이 깨진다 |
+| `===` / `!==` 비교 | 타입이 섞이면 조용히 false |
+| `Set.has` / `Map.get` / `includes` | 위와 같음. 특히 `favoriteIds` |
+| 템플릿 삽입 `${id}` | 따옴표 필요 여부가 바뀐다 |
+| `dataset.*` | DOM 속성은 항상 문자열이다 |
+
+`dataset` 이 항상 문자열이라는 점이 핵심이다. 숫자 id 시절에는 `parseInt` 로
+되돌려야 했고, 문자열 id 로 바꾸면 그 `parseInt` 가 정확히 반대로 작동한다.
+
 ---
 
 ## 5. 환경 함정
@@ -643,3 +709,16 @@ if (!value) { alert(...); return; }             ← JS 가 강제
 한쪽만 고치면 **반쪽만 고쳐진다.** 그리고 어느 쪽이 남았는지는
 우회 경로로 테스트하는 한 드러나지 않는다.
 검증 규칙을 바꿀 때는 **HTML 과 JS 를 같이 grep** 한다.
+
+#### 안 보이는 `required` 는 원인을 알려주지 않는다
+
+T-102에서 폼의 고급 필드를 접었다. 접힌 영역(`display: none`) 안에 `required` 가 있으면
+브라우저가 제출을 막으면서도 **어디가 문제인지 보여주지 못한다** —
+포커스를 줄 수 없는 요소라 "An invalid form control is not focusable" 로만 끝난다.
+
+→ **접힌 영역에 `required` 가 없다**를 구조 검증 항목으로 고정했다.
+
+```js
+ok('접힌 영역에 required 0건', adv().querySelectorAll('[required]').length === 0);
+ok('폼 유효성 통과', form.checkValidity());
+```
