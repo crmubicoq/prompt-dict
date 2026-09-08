@@ -15,7 +15,7 @@
         // ----------------------------------------
         // 읽기 반환 규약
         //   키 없음 (한 번도 저장 안 됨)  →  null    ("저장된 빈 배열"과 구분하기 위함)
-        //   파싱 실패                     →  throw   (빈 배열로 덮지 않는다)
+        //   파싱 실패 / 타입 불일치      →  throw   (빈 배열로 덮지 않는다)
         //   정상                          →  파싱된 값
         //
         // 쓰기 반환 규약
@@ -26,17 +26,36 @@
             name: 'LocalStorageAdapter',
 
             // --- 내부: JSON 읽기 ---
-            _readJson(key) {
+            // expectArray=true 면 파싱 결과가 배열인지까지 검증한다.
+            //
+            // ★ 타입 검증이 필요한 이유
+            //   JSON.parse('null') / '123' / '"abc"' / '{}' 는 예외를 던지지 않는다.
+            //   특히 저장소에 문자열 "null" 이 들어 있으면 파싱 결과가 null 이라
+            //   "키 없음"과 구분되지 않는다. 그대로 두면 호출부가 미저장으로 오인해
+            //   기본값을 만들어 저장하고, 그 순간 원본이 사라진다.
+            //   기존 코드는 이 경우 예외가 나서 초기화가 중단되고 원본이 보존됐다.
+            //   어댑터가 그 보호를 뚫지 않도록 배열이 아니면 손상으로 취급한다.
+            _readJson(key, expectArray) {
                 const raw = localStorage.getItem(key);
-                if (raw === null) return null;
+                if (raw === null) return null;          // 키 없음 — 실패가 아니다
 
+                let value;
                 try {
-                    return JSON.parse(raw);
+                    value = JSON.parse(raw);
                 } catch (error) {
                     // 조용히 넘어가지 않는다. 원본을 보존하고 예외를 올린다.
                     PromptStorage._recordReadFailure(key, raw, error);
                     throw new Error('저장된 데이터(' + key + ')가 손상되어 읽을 수 없습니다.');
                 }
+
+                if (expectArray && !Array.isArray(value)) {
+                    const kind = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+                    const error = new TypeError('배열이어야 하는데 ' + kind + ' 이 저장되어 있습니다.');
+                    PromptStorage._recordReadFailure(key, raw, error);
+                    throw new Error('저장된 데이터(' + key + ')가 배열이 아닙니다.');
+                }
+
+                return value;
             },
 
             // --- 내부: 평문 읽기 (_theme 등) ---
@@ -44,7 +63,7 @@
                 return localStorage.getItem(key);
             },
 
-            // --- 내부: 쓰기 ---
+            // --- 내부: 쓰기 (문자열) ---
             _write(key, value) {
                 try {
                     localStorage.setItem(key, value);
@@ -54,6 +73,30 @@
                     alert('데이터 저장에 실패했습니다. 저장 공간을 확인해주세요.');
                     return false;
                 }
+            },
+
+            // --- 내부: 쓰기 (직렬화 포함) ---
+            // produce() 는 저장할 값을 만들어 주는 함수. 변환·직렬화를 전부
+            // try 안에서 수행해야 순환 참조 같은 실패도 예외가 아니라 false 가 된다.
+            // (공개 규약: 성공 true / 실패·차단 false — Promise rejection 아님)
+            _writeJson(key, produce) {
+                let json;
+                try {
+                    json = JSON.stringify(produce());
+                } catch (error) {
+                    console.error('[PromptStorage] 직렬화 실패 (' + key + '):', error);
+                    alert('데이터를 저장할 수 없습니다.\n저장할 값을 JSON으로 변환하지 못했습니다.');
+                    return false;
+                }
+
+                // JSON.stringify(undefined) 는 예외 없이 undefined 를 돌려준다.
+                // 그대로 저장하면 "undefined" 문자열이 남아 다음 읽기가 깨진다.
+                if (json === undefined) {
+                    console.error('[PromptStorage] 직렬화 결과가 undefined (' + key + '). 저장하지 않습니다.');
+                    return false;
+                }
+
+                return this._write(key, json);
             },
 
             // --- 내부: 삭제 ---
@@ -68,34 +111,35 @@
 
             // --- 프롬프트 ---
             async getPrompts() {
-                return this._readJson(STORAGE_KEY);
+                return this._readJson(STORAGE_KEY, true);
             },
             async savePrompts(list) {
-                return this._write(STORAGE_KEY, JSON.stringify(list));
+                return this._writeJson(STORAGE_KEY, () => list);
             },
 
             // --- 즐겨찾기 (Set / 배열 모두 허용) ---
             async getFavorites() {
-                return this._readJson(FAVORITES_KEY);
+                return this._readJson(FAVORITES_KEY, true);
             },
             async saveFavorites(set) {
-                return this._write(FAVORITES_KEY, JSON.stringify(Array.from(set)));
+                // Array.from 도 실패할 수 있으므로 직렬화와 같은 try 안에서 실행한다.
+                return this._writeJson(FAVORITES_KEY, () => Array.from(set));
             },
 
             // --- 카테고리 ---
             async getCategories() {
-                return this._readJson(CATEGORIES_KEY);
+                return this._readJson(CATEGORIES_KEY, true);
             },
             async saveCategories(list) {
-                return this._write(CATEGORIES_KEY, JSON.stringify(list));
+                return this._writeJson(CATEGORIES_KEY, () => list);
             },
 
             // --- 검색 기록 ---
             async getSearchHistory() {
-                return this._readJson(SEARCH_HISTORY_KEY);
+                return this._readJson(SEARCH_HISTORY_KEY, true);
             },
             async saveSearchHistory(list) {
-                return this._write(SEARCH_HISTORY_KEY, JSON.stringify(list));
+                return this._writeJson(SEARCH_HISTORY_KEY, () => list);
             },
 
             // --- 평문 설정 (_theme 등) ---
@@ -103,13 +147,26 @@
                 return this._readText(key);
             },
             async setSetting(key, value) {
-                return this._write(key, String(value));
+                // String() 도 던질 수 있다 (Symbol, toString 이 throw 하는 객체 등)
+                let text;
+                try {
+                    text = String(value);
+                } catch (error) {
+                    console.error('[PromptStorage] 문자열 변환 실패 (' + key + '):', error);
+                    return false;
+                }
+                return this._write(key, text);
             },
 
             // --- 전체 삭제 ---
             async removeAll() {
-                this._allKeys().forEach(key => this._remove(key));
-                return true;
+                try {
+                    this._allKeys().forEach(key => this._remove(key));
+                    return true;
+                } catch (error) {
+                    console.error('[PromptStorage] 전체 삭제 실패:', error);
+                    return false;
+                }
             }
         };
 
@@ -197,10 +254,18 @@
             // 손상 상태에서 벗어나는 유일한 경로이므로 쓰기 가드를 적용하지 않는다.
             async removeAll() {
                 const result = await this.adapter.removeAll();
+
+                // 어댑터가 실패했으면 가드를 풀지 않는다.
+                // 지우지도 못한 채 쓰기 차단만 해제하면 손상된 원본을 덮어쓰게 된다.
+                if (result !== true) {
+                    console.error('[PromptStorage] 전체 삭제에 실패했습니다. 읽기 실패 가드와 rawBackup 을 유지합니다.');
+                    return false;
+                }
+
                 this.isReadFailed = false;
                 this.rawBackup = {};
                 console.warn('[PromptStorage] 저장된 전체 데이터를 삭제했습니다.');
-                return result;
+                return true;
             }
         };
 
