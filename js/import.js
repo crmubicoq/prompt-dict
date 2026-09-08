@@ -103,7 +103,7 @@
                             }
                             
                             const newPrompt = {
-                                id: Date.now() + addedCount,
+                                id: newId(),
                                 title: prompt.title,
                                 content: prompt.content,
                                 category: validatedCategory,
@@ -183,7 +183,7 @@
                             }
                             
                             const newPrompt = {
-                                id: Date.now() + addedCount,
+                                id: newId(),
                                 title: values[0] || `프롬프트 ${i}`,
                                 content: values[1] || '',
                                 category: validatedCategory,
@@ -249,7 +249,7 @@
                         
                         if (lines.length > 0) {
                             const newPrompt = {
-                                id: Date.now() + addedCount,
+                                id: newId(),
                                 title: lines[0].trim() || `프롬프트 ${index + 1}`,
                                 content: lines.slice(1).join('\n').trim() || lines[0],
                                 category: '기타',

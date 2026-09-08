@@ -22,7 +22,7 @@
         // 3.4: 샘플 데이터 3개 만들기 (테스트용)
         const sampleData = [
             {
-                id: 1,
+                id: '0f8a1c62-3d54-4a11-9b7e-2c6f5d840a31', // T-116: 고정 UUID (config.js 는 newId() 보다 먼저 로드됨)
                 title: 'AI PM 가이드 프롬프트',
                 content: `당신은 비개발자가 AI 코딩 도구(Cursor, Lovable, v0 등)를 사용하여 웹앱을 개발할 수 있도록 돕는 전문 AI 제품 관리자(PM)이자 코딩 가이드입니다.
 
@@ -38,7 +38,7 @@
                 isFavorite: false
             },
             {
-                id: 2,
+                id: '7b2e9d40-6c18-4f73-8a5d-1e0b3c97f452', // T-116: 고정 UUID (config.js 는 newId() 보다 먼저 로드됨)
                 title: '블로그 글쓰기 프롬프트',
                 content: `SEO 최적화된 블로그 글을 작성해주세요.
 
@@ -61,7 +61,7 @@
                 isFavorite: false
             },
             {
-                id: 3,
+                id: 'c4d17e85-9a2b-4c60-b3f8-5d72a08e1963', // T-116: 고정 UUID (config.js 는 newId() 보다 먼저 로드됨)
                 title: '데이터 분석 요청 프롬프트',
                 content: `첨부된 데이터를 분석하고 다음 형식으로 리포트해주세요:
 

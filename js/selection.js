@@ -43,7 +43,7 @@
             } else {
                 // 전체 선택
                 currentPrompts.forEach(card => {
-                    const id = parseInt(card.dataset.id);
+                    const id = card.dataset.id; // T-116: UUID 문자열
                     selectedPromptIds.add(id);
                 });
             }
@@ -57,7 +57,7 @@
         function updateCheckboxes() {
             const cards = document.querySelectorAll('.prompt-card');
             cards.forEach(card => {
-                const id = parseInt(card.dataset.id);
+                const id = card.dataset.id; // T-116: UUID 문자열
                 const checkbox = card.querySelector('.prompt-checkbox');
                 
                 if (checkbox) {

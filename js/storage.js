@@ -414,6 +414,12 @@
                         '취소: 덮어쓰기 (기존 데이터 삭제)'
                     );
 
+                    // T-116: 파일에 id 가 없으면 새로 부여한다.
+                    // id 없는 항목이 섞이면 병합 중복 판정과 즐겨찾기가 깨진다.
+                    data.prompts.forEach(p => {
+                        if (!p.id) p.id = newId();
+                    });
+
                     if (shouldMerge) {
                         // 병합: 새 프롬프트만 추가 (ID 중복 방지)
                         const existingIds = new Set(allPrompts.map(p => p.id));

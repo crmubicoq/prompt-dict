@@ -1,3 +1,29 @@
+        // T-116: 프롬프트 ID 생성
+        //
+        // ★ crypto.randomUUID() 는 **보안 컨텍스트에서만** 제공된다.
+        //   file:// 과 https 는 보안 컨텍스트지만, P4의 팀 서버는 http(8807)라
+        //   그대로 두면 undefined 가 되어 ID 생성이 통째로 깨진다.
+        //   getRandomValues 는 비보안 컨텍스트에서도 쓸 수 있으므로 v4 를 직접 만든다.
+        //
+        //   Math.random 으로는 떨어지지 않는다 — 충돌 회피가 목적인데
+        //   약한 난수로 대체하면 조용히 같은 문제가 남는다.
+        function newId() {
+            if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+                return crypto.randomUUID();
+            }
+
+            if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+                const bytes = crypto.getRandomValues(new Uint8Array(16));
+                bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+                bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+                const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+                return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) +
+                       '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+            }
+
+            throw new Error('이 브라우저에서는 안전한 ID를 생성할 수 없습니다.');
+        }
+
         // 5.7: 날짜 포맷팅 함수
         function formatDate(isoString) {
             const date = new Date(isoString);

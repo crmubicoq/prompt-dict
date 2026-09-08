@@ -135,7 +135,7 @@
             // 선택 모드 체크박스
             const checkboxHTML = isSelectionMode 
                 ? `<input type="checkbox" class="prompt-checkbox" 
-                          onclick="togglePromptSelection(${prompt.id}, event);"
+                          onclick="togglePromptSelection('${prompt.id}', event);"
                           ${selectedPromptIds.has(prompt.id) ? 'checked' : ''}>` 
                 : '';
 
@@ -159,7 +159,7 @@
                         <h3 class="card-title">${prompt.title}</h3>
                         <button class="favorite-btn ${isFavorite ? 'active' : ''}" 
                                 data-id="${prompt.id}"
-                                onclick="toggleFavorite(${prompt.id}); event.stopPropagation();">
+                                onclick="toggleFavorite('${prompt.id}'); event.stopPropagation();">
                             ${favoriteIcon}
                         </button>
                     </div>
@@ -210,7 +210,7 @@
             const cards = grid.querySelectorAll('.prompt-card');
             cards.forEach(card => {
                 card.addEventListener('click', function() {
-                    const id = parseInt(this.dataset.id);
+                    const id = this.dataset.id; // T-116: UUID 문자열
                     // Phase 9: 상세 보기 모달 열기
                     openDetailModal(id);
                 });
@@ -529,7 +529,7 @@
 
             // 새 프롬프트 객체 생성 (복제)
             const duplicatedPrompt = {
-                id: Date.now(), // 새 ID
+                id: newId(), // 새 ID
                 title: prompt.title + ' (복사본)',
                 content: prompt.content,
                 category: prompt.category,
@@ -690,7 +690,7 @@
             // 편집 모드인지 확인
             if (editingId) {
                 // 수정 모드
-                const promptId = parseInt(editingId);
+                const promptId = editingId; // T-116: UUID 문자열
                 const prompt = allPrompts.find(p => p.id === promptId);
                 
                 if (!prompt) {
@@ -736,7 +736,7 @@
                 // 추가 모드
                 // 4.9: 새 프롬프트 객체 생성
                 const newPrompt = {
-                    id: Date.now(), // 현재 시간을 ID로 사용 (유니크함 보장)
+                    id: newId(), // T-116: 같은 밀리초 충돌 방지
                     title: title,
                     content: content,
                     category: category,
