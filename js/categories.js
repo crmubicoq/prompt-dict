@@ -121,7 +121,7 @@
             document.getElementById('new-category-name').value = '';
         }
 
-        function addNewCategory() {
+        async function addNewCategory() {
             const emoji = document.getElementById('new-category-emoji').value.trim();
             const name = document.getElementById('new-category-name').value.trim();
 
@@ -144,8 +144,16 @@
                 name: name
             };
 
+            // T-009c-1: 실패 시 되돌릴 스냅샷 (이 함수는 categories 만 바꾼다)
+            const snapshotCategories = [...categories];
+
             categories.push(newCategory);
-            saveCategories();
+
+            if (await PromptStorage.saveCategories(categories) !== true) {
+                categories = snapshotCategories;
+                showToast('저장 실패 — 변경을 되돌렸습니다 ❌');
+                return;
+            }
 
             // UI 업데이트
             renderCategoryList();

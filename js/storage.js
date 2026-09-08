@@ -396,9 +396,12 @@
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = async function(event) {
                 try {
                     const data = JSON.parse(event.target.result);
+
+                    // T-009c-1: 실패 시 되돌릴 스냅샷
+                    const snapshot = { prompts: allPrompts, favorites: favoriteIds };
                     
                     if (!data.prompts || !Array.isArray(data.prompts)) {
                         throw new Error('유효하지 않은 파일 형식입니다.');
@@ -426,7 +429,25 @@
                         favoriteIds = new Set(data.favorites);
                     }
 
-                    saveToLocalStorage();
+                    // 저장 — 프롬프트와 즐겨찾기 둘 다 바뀌었다
+                    const okPrompts = await PromptStorage.savePrompts(allPrompts);
+                    const okFavorites = okPrompts === true
+                        ? await PromptStorage.saveFavorites(favoriteIds)
+                        : false;
+
+                    if (okPrompts !== true || okFavorites !== true) {
+                        allPrompts = snapshot.prompts;
+                        favoriteIds = snapshot.favorites;
+
+                        if (okPrompts === true) {
+                            await PromptStorage.savePrompts(allPrompts);
+                        }
+
+                        renderPromptList(allPrompts);
+                        showToast('저장 실패 — 불러오기를 되돌렸습니다 ❌');
+                        return;
+                    }
+
                     currentFilter = 'all';
                     currentSearchQuery = '';
                     renderPromptList(allPrompts);

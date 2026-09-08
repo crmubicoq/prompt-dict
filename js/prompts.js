@@ -398,7 +398,7 @@
         // 프롬프트 삭제 기능
         // ========================================
 
-        function deletePrompt() {
+        async function deletePrompt() {
             const promptId = currentDetailId;
             if (!promptId) return;
 
@@ -431,6 +431,9 @@
                 return;
             }
 
+            // T-009c-1: 실패 시 되돌릴 스냅샷
+            const snapshot = { prompts: [...allPrompts], favorites: new Set(favoriteIds) };
+
             // 프롬프트 삭제
             const index = allPrompts.findIndex(p => p.id === promptId);
             if (index !== -1) {
@@ -442,8 +445,25 @@
                 favoriteIds.delete(promptId);
             }
 
-            // 저장
-            saveToLocalStorage();
+            // 저장 — 프롬프트와 즐겨찾기 둘 다 바뀌었다
+            const okPrompts = await PromptStorage.savePrompts(allPrompts);
+            const okFavorites = okPrompts === true
+                ? await PromptStorage.saveFavorites(favoriteIds)
+                : false;
+
+            if (okPrompts !== true || okFavorites !== true) {
+                allPrompts = snapshot.prompts;
+                favoriteIds = snapshot.favorites;
+
+                // 프롬프트만 저장된 상태면 되돌린 값으로 다시 써 둔다 (최선 노력)
+                if (okPrompts === true) {
+                    await PromptStorage.savePrompts(allPrompts);
+                }
+
+                applyFilters();
+                showToast('저장 실패 — 변경을 되돌렸습니다 ❌');
+                return;
+            }
 
             // 상세 모달 닫기
             closeDetailModal();
@@ -469,7 +489,7 @@
         // I. 프롬프트 복제 기능
         // ========================================
 
-        function duplicatePrompt() {
+        async function duplicatePrompt() {
             const promptId = currentDetailId;
             if (!promptId) return;
 
@@ -502,11 +522,19 @@
                 isFavorite: false // 즐겨찾기는 해제
             };
 
+            // T-009c-1: 실패 시 되돌릴 스냅샷 (이 함수는 프롬프트만 바꾼다)
+            const snapshotPrompts = [...allPrompts];
+
             // 배열 맨 앞에 추가
             allPrompts.unshift(duplicatedPrompt);
 
-            // 저장
-            saveToLocalStorage();
+            // 저장 — 즐겨찾기는 바뀌지 않으므로 프롬프트만
+            if (await PromptStorage.savePrompts(allPrompts) !== true) {
+                allPrompts = snapshotPrompts;
+                applyFilters();
+                showToast('저장 실패 — 변경을 되돌렸습니다 ❌');
+                return;
+            }
 
             // 상세 모달 닫기
             closeDetailModal();
@@ -603,7 +631,7 @@
         }
 
         // 4.7 ~ 4.10: 폼 제출 처리 함수
-        function handleFormSubmit(e) {
+        async function handleFormSubmit(e) {
             e.preventDefault(); // 폼 기본 동작 방지
 
             // 4.7: 데이터 수집
@@ -636,6 +664,12 @@
                 ? tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag)
                 : [];
 
+            // T-009c-1: 실패 시 되돌릴 스냅샷
+            const snapshotPrompts = [...allPrompts];
+            let editedIndex = -1;
+            let editedOriginal = null;
+            let successMessage = '';
+
             // 편집 모드인지 확인
             if (editingId) {
                 // 수정 모드
@@ -658,6 +692,10 @@
                     return;
                 }
 
+                // 롤백용 원본 사본 — 얕은 배열 복사는 제자리 수정을 되돌리지 못한다
+                editedIndex = allPrompts.indexOf(prompt);
+                editedOriginal = { ...prompt };
+
                 // 프롬프트 업데이트
                 prompt.title = title;
                 prompt.content = content;
@@ -675,7 +713,7 @@
                 }
 
                 console.log('프롬프트 수정 완료:', prompt);
-                showToast('프롬프트가 수정되었습니다! ✅');
+                successMessage = '프롬프트가 수정되었습니다! ✅';
 
             } else {
                 // 추가 모드
@@ -701,11 +739,22 @@
                 allPrompts.unshift(newPrompt); // 맨 앞에 추가 (최신순)
 
                 console.log('새 프롬프트 추가 완료:', newPrompt);
-                showToast('프롬프트가 추가되었습니다! ✅');
+                successMessage = '프롬프트가 추가되었습니다! ✅';
             }
 
-            // LocalStorage에 저장
-            saveToLocalStorage();
+            // 저장 — 이 함수는 프롬프트만 바꾼다 (즐겨찾기는 건드리지 않음)
+            if (await PromptStorage.savePrompts(allPrompts) !== true) {
+                // 롤백: 추가 모드는 배열 복원, 수정 모드는 바뀐 객체까지 복원
+                allPrompts = snapshotPrompts;
+                if (editedIndex !== -1) {
+                    allPrompts[editedIndex] = editedOriginal;
+                }
+                applyFilters();
+                showToast('저장 실패 — 변경을 되돌렸습니다 ❌');
+                return;
+            }
+
+            showToast(successMessage);
 
             // 4.10: 모달 닫기
             closeModal();

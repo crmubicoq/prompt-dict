@@ -54,13 +54,23 @@
             }
 
             // 테마 토글 버튼
-            themeBtn.addEventListener('click', function() {
+            // T-009c-1: 저장 실패 시 화면 상태까지 되돌린다
+            themeBtn.addEventListener('click', async function() {
+                const wasDark = document.body.classList.contains('dark-mode');
+
                 document.body.classList.toggle('dark-mode');
-                
+
                 const isDark = document.body.classList.contains('dark-mode');
                 themeBtn.textContent = isDark ? '☀️' : '🌙';
-                localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
-                
+
+                const saved = await PromptStorage.setSetting(THEME_KEY, isDark ? 'dark' : 'light');
+                if (saved !== true) {
+                    document.body.classList.toggle('dark-mode', wasDark);
+                    themeBtn.textContent = wasDark ? '☀️' : '🌙';
+                    showToast('테마 저장 실패 — 되돌렸습니다 ❌');
+                    return;
+                }
+
                 console.log('테마 변경:', isDark ? '다크모드' : '라이트모드');
             });
         }

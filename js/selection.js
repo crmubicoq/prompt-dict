@@ -89,7 +89,7 @@
         }
 
         // 선택된 프롬프트 삭제
-        function deleteSelectedPrompts() {
+        async function deleteSelectedPrompts() {
             if (selectedPromptIds.size === 0) {
                 alert('삭제할 프롬프트를 선택해주세요.');
                 return;
@@ -116,13 +116,21 @@
                 return;
             }
 
+            // T-009c-1: 실패 시 되돌릴 스냅샷
+            // 배열 요소를 제거만 하므로 얕은 복사로 충분하다 (객체 내부는 안 바꿈)
+            const snapshot = {
+                prompts: [...allPrompts],
+                favorites: new Set(favoriteIds),
+                selected: new Set(selectedPromptIds)
+            };
+
             // 삭제 처리
             selectedPromptIds.forEach(id => {
                 const index = allPrompts.findIndex(p => p.id === id);
                 if (index !== -1) {
                     allPrompts.splice(index, 1);
                 }
-                
+
                 // 즐겨찾기에서도 제거
                 if (favoriteIds.has(id)) {
                     favoriteIds.delete(id);
@@ -132,8 +140,27 @@
             const deletedCount = selectedPromptIds.size;
             selectedPromptIds.clear();
 
-            // 저장
-            saveToLocalStorage();
+            // 저장 — 프롬프트와 즐겨찾기 둘 다 바뀌었다
+            const okPrompts = await PromptStorage.savePrompts(allPrompts);
+            const okFavorites = okPrompts === true
+                ? await PromptStorage.saveFavorites(favoriteIds)
+                : false;
+
+            if (okPrompts !== true || okFavorites !== true) {
+                allPrompts = snapshot.prompts;
+                favoriteIds = snapshot.favorites;
+                selectedPromptIds = snapshot.selected;
+
+                // 프롬프트만 저장된 상태면 되돌린 값으로 다시 써 둔다 (최선 노력)
+                if (okPrompts === true) {
+                    await PromptStorage.savePrompts(allPrompts);
+                }
+
+                applyFilters();
+                updateSelectedCount();
+                showToast('저장 실패 — 변경을 되돌렸습니다 ❌');
+                return;
+            }
 
             // UI 업데이트
             applyFilters();
