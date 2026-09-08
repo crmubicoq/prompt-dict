@@ -393,6 +393,10 @@
             document.getElementById('prompt-content').value = prompt.content;
             document.getElementById('prompt-notes').value = prompt.notes || '';
 
+            // T-102: 채워진 값이 접힌 채로 숨지 않도록, 값이 있으면 펼친다.
+            // 제목·본문만 있는 프롬프트라면 접힌 채로 둔다.
+            setAdvancedOpen(hasAdvancedValue() || !!prompt.thumbnailImage);
+
             // 카테고리에 따라 이미지 섹션 표시/숨김
             toggleThumbnailSection();
 
@@ -598,6 +602,15 @@
                 }
             });
 
+            // T-102: '자세히' 토글
+            const advancedBtn = document.getElementById('toggle-advanced-btn');
+            if (advancedBtn) {
+                advancedBtn.addEventListener('click', function() {
+                    const fields = document.getElementById('advanced-fields');
+                    setAdvancedOpen(fields.style.display === 'none');
+                });
+            }
+
             // T-103: 제목을 비워두면 무엇이 들어갈지 미리 보여준다.
             // ★ value 가 아니라 placeholder 로 넣는다 — 값으로 채우면 사용자가
             //   지우고 써야 해서 오히려 마찰이 늘고, 본문을 고칠 때마다
@@ -617,8 +630,37 @@
         }
 
         // 4.4: 모달 열기 함수
+        // T-102: '자세히' 영역 펼침/접힘
+        function setAdvancedOpen(open) {
+            const fields = document.getElementById('advanced-fields');
+            const btn = document.getElementById('toggle-advanced-btn');
+            if (!fields || !btn) return;
+
+            fields.style.display = open ? 'block' : 'none';
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            btn.textContent = open
+                ? '▾ 자세히 (카테고리 · 태그 · 설명 · 메모)'
+                : '▸ 자세히 (카테고리 · 태그 · 설명 · 메모)';
+        }
+
+        // T-102: 접힌 필드 중 하나라도 값이 있는지
+        // 수정 모드에서 채워진 값이 접힌 채로 숨어 있으면 사용자가 못 본다.
+        function hasAdvancedValue() {
+            return ['prompt-category', 'prompt-tags', 'prompt-description', 'prompt-notes']
+                .some(id => {
+                    const el = document.getElementById(id);
+                    return el && el.value.trim() !== '';
+                });
+        }
+
         function openModal() {
             const modalOverlay = document.getElementById('modal-overlay');
+
+            // T-102: 추가 모드는 항상 접힌 채로 시작한다.
+            // 마지막 상태를 기억하면, 한 번 펼친 뒤로는 계속 펼쳐진 채라
+            // '최소 입력'이라는 목적이 무너진다.
+            setAdvancedOpen(false);
+
             modalOverlay.style.display = 'flex';
             document.body.style.overflow = 'hidden'; // 스크롤 방지
         }
