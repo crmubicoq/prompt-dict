@@ -1,3 +1,16 @@
+        // T-011(F2): 처리되지 않은 Promise 거부 안전망
+        // async 이벤트 핸들러는 반환 Promise 를 받는 곳이 없어, 저장이 아닌
+        // 렌더 경로에서 예외가 나면 롤백을 건너뛴 채 콘솔에만 남는다.
+        // 개별 try/catch(인라인 onclick 5곳)는 원인별 문구가 더 친절하므로 그대로 두고,
+        // 여기서는 어디서도 못 잡은 것만 받는 최후 안전망 역할을 한다.
+        // ★ 리스너1보다 먼저 등록되어야 초기화 중 발생한 거부도 잡는다.
+        window.addEventListener('unhandledrejection', function (event) {
+            console.error('[처리되지 않은 오류]', event.reason);
+            if (typeof showToast === 'function') {
+                showToast('처리 중 오류가 발생했습니다 ❌');
+            }
+        });
+
         // 페이지 로드 시 데이터 초기화
         // T-009b: 읽기 경로가 async 가 되어 리스너1도 async 다.
         // ★ 아래 리스너2(상세 모달 버튼)는 동기 그대로 둔다. 합치지도 않는다. (71c81d2)

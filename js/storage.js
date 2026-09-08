@@ -173,35 +173,53 @@
         const PromptStorage = {
             adapter: LocalStorageAdapter,
 
-            // 읽기 실패 상태. 한 번이라도 파싱에 실패하면 true 로 고정된다.
-            isReadFailed: false,
+            // --- 읽기 실패 상태 (T-011: 키 단위) ---
+            // 손상된 키만 잠근다. 검색 기록 하나가 깨졌다고 프롬프트 저장까지
+            // 막으면 앱을 통째로 못 쓰게 되고, 사용자는 원인도 알 수 없다.
+            failedKeys: new Set(),
 
             // 파싱에 실패한 원본 문자열 보관소 (키 → 원본). 수동 복구용.
             rawBackup: {},
 
+            // 하위 호환·진단용 요약 값. 가드의 입력이 아니라 결과다.
+            // 쓰기 차단 여부는 항상 failedKeys.has(key) 로 판단한다.
+            get isReadFailed() {
+                return this.failedKeys.size > 0;
+            },
+
             // --- 어댑터가 파싱 실패를 보고하는 지점 ---
             _recordReadFailure(key, raw, error) {
-                this.isReadFailed = true;
+                this.failedKeys.add(key);
                 this.rawBackup[key] = raw;
 
                 console.error('[PromptStorage] 저장 데이터 파싱 실패 (' + key + '):', error);
                 console.error('[PromptStorage] 원본 ' + raw.length + '자를 PromptStorage.rawBackup 에 보관했습니다. 키: ' + key);
-                console.error('[PromptStorage] 이후 모든 저장이 차단됩니다. 원본을 확보한 뒤 PromptStorage.removeAll() 로 초기화하세요.');
+                console.error('[PromptStorage] 이 키의 저장이 차단됩니다. 원본을 확보한 뒤 PromptStorage.removeAll() 로 초기화하세요.');
 
                 alert(
                     '저장된 데이터를 읽지 못했습니다.\n' +
                     '손상된 키: ' + key + '\n\n' +
-                    '데이터를 덮어쓰지 않기 위해 저장 기능을 잠급니다.\n' +
+                    '이 항목을 덮어쓰지 않기 위해 해당 키의 저장만 잠급니다.\n' +
+                    '다른 항목은 정상적으로 저장됩니다.\n' +
                     '원본은 개발자 도구 콘솔의 PromptStorage.rawBackup 에서 확인할 수 있습니다.'
                 );
             },
 
-            // --- 쓰기 가드: 읽기에 실패한 상태면 저장을 막는다 ---
-            _blockedByReadFailure(label) {
-                if (!this.isReadFailed) return false;
+            // --- 쓰기 가드: 그 키의 읽기에 실패했을 때만 막는다 ---
+            _blockedByReadFailure(key, label) {
+                if (!this.failedKeys.has(key)) return false;
 
-                console.warn('[PromptStorage] 읽기 실패 상태이므로 ' + label + ' 저장을 건너뜁니다.');
+                console.warn('[PromptStorage] ' + key + ' 읽기 실패 상태이므로 ' + label + ' 저장을 건너뜁니다.');
                 console.warn('[PromptStorage] 손상된 원본을 덮어쓰지 않기 위한 의도된 차단입니다.');
+
+                // 호출부는 저장 실패를 구분하지 못하므로 "되돌렸습니다" 같은 일반 문구만 띄운다.
+                // 원인을 알리는 쪽이 더 유용하니, 호출부 토스트 뒤에 오도록 태스크로 미뤄
+                // 마지막에 표시되게 한다 (showToast 는 내용을 교체하므로 결과적으로 1개만 보인다).
+                const message = '저장 실패: ' + key + ' 손상으로 이 항목 저장이 잠겼습니다 ❌';
+                setTimeout(function () {
+                    if (typeof showToast === 'function') showToast(message);
+                }, 0);
+
                 return true;
             },
 
@@ -210,7 +228,7 @@
                 return this.adapter.getPrompts();
             },
             async savePrompts(list) {
-                if (this._blockedByReadFailure('프롬프트')) return false;
+                if (this._blockedByReadFailure(STORAGE_KEY, '프롬프트')) return false;
                 return this.adapter.savePrompts(list);
             },
 
@@ -219,7 +237,7 @@
                 return this.adapter.getFavorites();
             },
             async saveFavorites(set) {
-                if (this._blockedByReadFailure('즐겨찾기')) return false;
+                if (this._blockedByReadFailure(FAVORITES_KEY, '즐겨찾기')) return false;
                 return this.adapter.saveFavorites(set);
             },
 
@@ -228,7 +246,7 @@
                 return this.adapter.getCategories();
             },
             async saveCategories(list) {
-                if (this._blockedByReadFailure('카테고리')) return false;
+                if (this._blockedByReadFailure(CATEGORIES_KEY, '카테고리')) return false;
                 return this.adapter.saveCategories(list);
             },
 
@@ -237,21 +255,23 @@
                 return this.adapter.getSearchHistory();
             },
             async saveSearchHistory(list) {
-                if (this._blockedByReadFailure('검색 기록')) return false;
+                if (this._blockedByReadFailure(SEARCH_HISTORY_KEY, '검색 기록')) return false;
                 return this.adapter.saveSearchHistory(list);
             },
 
             // --- 평문 설정 (_theme 등) ---
+            // 평문은 파싱하지 않아 읽기 실패가 없지만, 규약을 맞춰 같은 가드를 태운다.
             async getSetting(key) {
                 return this.adapter.getSetting(key);
             },
             async setSetting(key, value) {
-                if (this._blockedByReadFailure('설정(' + key + ')')) return false;
+                if (this._blockedByReadFailure(key, '설정(' + key + ')')) return false;
                 return this.adapter.setSetting(key, value);
             },
 
             // --- 전체 삭제 (T-115 왕복 테스트 / 손상 복구용) ---
             // 손상 상태에서 벗어나는 유일한 경로이므로 쓰기 가드를 적용하지 않는다.
+            // 키 단위 가드와 달리 여기서는 전체를 리셋한다 — 전부 지웠으니 잠글 이유가 없다.
             async removeAll() {
                 const result = await this.adapter.removeAll();
 
@@ -262,7 +282,7 @@
                     return false;
                 }
 
-                this.isReadFailed = false;
+                this.failedKeys.clear();
                 this.rawBackup = {};
                 console.warn('[PromptStorage] 저장된 전체 데이터를 삭제했습니다.');
                 return true;
