@@ -653,7 +653,8 @@
 
             // 4.7: 데이터 수집
             const title = document.getElementById('prompt-title').value.trim();
-            const category = document.getElementById('prompt-category').value;
+            // T-101: 카테고리는 선택 사항. 미선택이면 '미분류'로 저장하고 나중에 정리한다.
+            const category = document.getElementById('prompt-category').value || UNCATEGORIZED;
             const tagsInput = document.getElementById('prompt-tags').value.trim();
             const description = document.getElementById('prompt-description').value.trim();
             const content = document.getElementById('prompt-content').value.trim();
@@ -663,11 +664,6 @@
             // 4.8: 입력값 유효성 검사
             if (!title) {
                 alert('제목을 입력해주세요.');
-                return;
-            }
-
-            if (!category) {
-                alert('카테고리를 선택해주세요.');
                 return;
             }
 

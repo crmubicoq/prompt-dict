@@ -14,7 +14,12 @@
                 const count = allPrompts.filter(p => p.category === cat.name).length;
                 html += `<li><button class="category-btn" data-category="${cat.name}">${cat.emoji} ${cat.name} (${count})</button></li>`;
             });
-            
+
+            // T-101: 미분류는 categories 배열 밖의 고정 항목이다.
+            // 관리 화면에 뜨지 않으므로 삭제·수정될 수 없다.
+            const uncategorizedCount = allPrompts.filter(p => p.category === UNCATEGORIZED).length;
+            html += `<li><button class="category-btn" data-category="${UNCATEGORIZED}">📥 ${UNCATEGORIZED} (${uncategorizedCount})</button></li>`;
+
             categoryList.innerHTML = html;
             
             // 카테고리 버튼 이벤트 다시 등록
@@ -55,6 +60,13 @@
                 }
             });
             
+            // T-101: 미분류 개수
+            const uncategorizedBtn = document.querySelector(`.category-btn[data-category="${UNCATEGORIZED}"]`);
+            if (uncategorizedBtn) {
+                const uncategorizedCount = allPrompts.filter(p => p.category === UNCATEGORIZED).length;
+                uncategorizedBtn.textContent = `📥 ${UNCATEGORIZED} (${uncategorizedCount})`;
+            }
+
             // 즐겨찾기 개수
             const favoritesBtn = document.getElementById('favorites-btn');
             if (favoritesBtn) {
@@ -67,7 +79,8 @@
         function renderCategoryDropdown() {
             const select = document.getElementById('prompt-category');
             
-            let html = '<option value="">선택하세요</option>';
+            // T-101: 빈 값 = 미분류. 나중에 정리할 수 있도록 선택을 강제하지 않는다.
+            let html = '<option value="">선택 안 함 (미분류)</option>';
             categories.forEach(cat => {
                 html += `<option value="${cat.name}">${cat.emoji} ${cat.name}</option>`;
             });
@@ -381,9 +394,13 @@
         // 카테고리 검증 함수
         function validateCategory(category) {
             if (!category) return '기타';
-            
+
+            // T-101: 미분류는 categories 배열에 없지만 유효한 값이다.
+            // 이 예외가 없으면 불러오기에서 미분류가 '기타'로 뭉개진다.
+            if (category === UNCATEGORIZED) return UNCATEGORIZED;
+
             // 시스템에 존재하는 카테고리인지 확인
             const exists = categories.some(cat => cat.name === category);
-            
+
             return exists ? category : '기타';
         }

@@ -4,6 +4,11 @@
         const THEME_KEY = 'promptDictionary_theme';
         const CATEGORIES_KEY = 'promptDictionary_categories';
 
+        // T-101: 분류를 미루고 저장할 때 쓰는 특수 값.
+        // ★ defaultCategories 에 넣지 않는다 — 카테고리 관리 화면에서
+        //   삭제·수정되면 안 되는 값이기 때문. 사이드바에는 고정 항목으로 그린다.
+        const UNCATEGORIZED = '미분류';
+
         // 전역 변수: 모든 프롬프트를 저장하는 배열
         let allPrompts = [];
         let favoriteIds = new Set(); // 즐겨찾기 ID 모음
