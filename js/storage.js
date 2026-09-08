@@ -270,12 +270,11 @@
         };
 
         // 3.5: 데이터 초기화 함수
-        // T-009b: 읽기만 PromptStorage 경유. 쓰기는 아직 기존 함수 (T-009c에서 교체)
+        // T-009b/T-009c-3: 읽기·쓰기 모두 PromptStorage 경유
         //
         // ★ 순서 — 관련 읽기를 전부 끝낸 뒤에 첫 쓰기를 한다.
-        //   saveToLocalStorage() 는 프롬프트와 즐겨찾기를 함께 저장한다.
-        //   즐겨찾기를 읽기 전에 이걸 호출하면, 즐겨찾기가 손상됐을 때
-        //   실패 가드가 서기도 전에 빈 favoriteIds 로 원본을 덮어쓴다.
+        //   기본값 저장이 즐겨찾기 읽기보다 먼저 일어나면, 즐겨찾기가 손상됐을 때
+        //   실패 가드가 서기도 전에 빈 값으로 원본을 덮어쓴다.
         async function initializeData() {
             // --- 1) 읽기: 쓰기 전에 전부 끝낸다 ---
             const storedPrompts    = await PromptStorage.getPrompts();
@@ -314,47 +313,6 @@
                 }
             }
             console.log(`카테고리 ${categories.length}개 로드 완료 ✅`);
-        }
-
-        // 3.6: LocalStorage에서 데이터 불러오기 함수
-        function loadFromLocalStorage() {
-            try {
-                const stored = localStorage.getItem(STORAGE_KEY);
-                if (stored) {
-                    allPrompts = JSON.parse(stored);
-                    return true;
-                }
-                return false;
-            } catch (error) {
-                console.error('데이터 불러오기 실패:', error);
-                return false;
-            }
-        }
-
-        // 3.7: LocalStorage에 데이터 저장하기 함수
-        function saveToLocalStorage() {
-            try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(allPrompts));
-                localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favoriteIds]));
-                console.log('데이터 저장 완료 ✅');
-                return true;
-            } catch (error) {
-                console.error('데이터 저장 실패:', error);
-                alert('데이터 저장에 실패했습니다. 저장 공간을 확인해주세요.');
-                return false;
-            }
-        }
-
-        // 카테고리 저장
-        function saveCategories() {
-            try {
-                localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
-                console.log('카테고리 저장 완료 ✅');
-                return true;
-            } catch (error) {
-                console.error('카테고리 저장 실패:', error);
-                return false;
-            }
         }
 
         // ========================================

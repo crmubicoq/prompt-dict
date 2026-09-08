@@ -3,21 +3,12 @@
         // ========================================
 
         // 검색 기록 로드
-        // T-009b: 읽기만 PromptStorage 경유. 저장은 T-009c
+        // T-009b: PromptStorage 경유
         // 실패를 빈 배열로 덮지 않는다(조용한 실패 금지). 예외는 호출부로 올린다.
         // 키가 없을 때(null)만 빈 배열로 시작한다.
         async function loadSearchHistory() {
             const saved = await PromptStorage.getSearchHistory();
             searchHistory = saved === null ? [] : saved;
-        }
-
-        // 검색 기록 저장
-        function saveSearchHistory() {
-            try {
-                localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
-            } catch (error) {
-                console.error('검색 기록 저장 실패:', error);
-            }
         }
 
         // 검색 기록 추가
