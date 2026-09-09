@@ -62,7 +62,7 @@
 
             // 제안 목록 HTML 생성
             const suggestionsHTML = matchedTags.slice(0, 5).map(tag => 
-                `<div class="tag-suggestion-item" data-tag="${tag}">${tag}</div>`
+                `<div class="tag-suggestion-item" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</div>`
             ).join('');
 
             suggestionsDiv.innerHTML = suggestionsHTML;

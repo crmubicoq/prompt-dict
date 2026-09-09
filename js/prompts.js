@@ -124,8 +124,10 @@
 
             // 태그 HTML 생성 (클릭 가능하게)
             const tagsHTML = prompt.tags && prompt.tags.length > 0
-                ? prompt.tags.map(tag => 
-                    `<span class="tag-chip" onclick="filterByTag('${tag}'); event.stopPropagation();">${tag}</span>`
+                ? prompt.tags.map(tag =>
+                    // ★ onclick 은 T-113에서 이벤트 위임으로 전환 예정.
+                    //   이스케이프로는 막을 수 없다 (devlog 참조)
+                    `<span class="tag-chip" onclick="filterByTag('${tag}'); event.stopPropagation();">${escapeHtml(tag)}</span>`
                   ).join('')
                 : '';
 
@@ -134,6 +136,8 @@
 
             // 선택 모드 체크박스
             const checkboxHTML = isSelectionMode 
+                // ★ onclick 은 T-113에서 이벤트 위임으로 전환 예정.
+                //   이스케이프로는 막을 수 없다 (devlog 참조)
                 ? `<input type="checkbox" class="prompt-checkbox" 
                           onclick="togglePromptSelection('${prompt.id}', event);"
                           ${selectedPromptIds.has(prompt.id) ? 'checked' : ''}>` 
@@ -143,33 +147,39 @@
             const selectedClass = selectedPromptIds.has(prompt.id) ? 'selected' : '';
 
             // 썸네일 이미지 HTML (있으면 표시)
-            const thumbnailHTML = prompt.thumbnailImage 
-                ? `<img src="${prompt.thumbnailImage}" alt="${prompt.title}" class="card-thumbnail" onclick="event.stopPropagation();">` 
-                : '';
+            // ★ T-112: 스킴 화이트리스트를 통과한 URL 만 렌더한다.
+            //   통과하지 못하면 자리표시자를 띄운다 — 조용히 감추면 사용자는
+            //   썸네일이 사라진 이유를 알 수 없다.
+            const thumbnailUrl = safeImageUrl(prompt.thumbnailImage);
+            const thumbnailHTML = !prompt.thumbnailImage
+                ? ''
+                : thumbnailUrl
+                    ? `<img src="${escapeHtml(thumbnailUrl)}" alt="${escapeHtml(prompt.title)}" class="card-thumbnail" onclick="event.stopPropagation();">`
+                    : `<div class="card-thumbnail card-thumbnail-blocked" onclick="event.stopPropagation();">🚫 표시할 수 없는 이미지 형식</div>`;
 
             // 카드 HTML
             return `
-                <div class="prompt-card ${selectionClass} ${selectedClass}" data-id="${prompt.id}">
+                <div class="prompt-card ${selectionClass} ${selectedClass}" data-id="${escapeHtml(prompt.id)}">
                     ${checkboxHTML}
                     
                     <!-- 썸네일 이미지 -->
                     ${thumbnailHTML}
                     
                     <div class="card-header">
-                        <h3 class="card-title">${prompt.title}</h3>
+                        <h3 class="card-title">${escapeHtml(prompt.title)}</h3>
                         <button class="favorite-btn ${isFavorite ? 'active' : ''}" 
-                                data-id="${prompt.id}"
+                                data-id="${escapeHtml(prompt.id)}"
                                 onclick="toggleFavorite('${prompt.id}'); event.stopPropagation();">
                             ${favoriteIcon}
                         </button>
                     </div>
                     
                     <div class="card-meta">
-                        <span class="category-badge ${prompt.category}">${prompt.category}</span>
+                        <span class="${escapeHtml(categoryClass(prompt.category))}">${escapeHtml(prompt.category)}</span>
                         ${tagsHTML ? `<div class="card-tags">${tagsHTML}</div>` : ''}
                     </div>
                     
-                    ${description ? `<p class="card-description">${description}</p>` : ''}
+                    ${description ? `<p class="card-description">${escapeHtml(description)}</p>` : ''}
                     
                     <div class="card-footer">
                         <span class="card-date">📅 ${formatDate(prompt.createdAt)}</span>
@@ -274,23 +284,26 @@
             
             // 썸네일 이미지
             const detailThumbnail = document.getElementById('detail-thumbnail');
-            if (prompt.thumbnailImage) {
-                detailThumbnail.src = prompt.thumbnailImage;
+            // T-112: 카드와 같은 스킴 검증을 적용한다.
+            const detailThumbnailUrl = safeImageUrl(prompt.thumbnailImage);
+            if (detailThumbnailUrl) {
+                detailThumbnail.src = detailThumbnailUrl;
                 detailThumbnail.style.display = 'block';
             } else {
+                detailThumbnail.removeAttribute('src');
                 detailThumbnail.style.display = 'none';
             }
             
             // 카테고리
             const categoryBadge = document.getElementById('detail-category');
             categoryBadge.textContent = prompt.category;
-            categoryBadge.className = `category-badge ${prompt.category}`;
+            categoryBadge.className = categoryClass(prompt.category);
 
             // 태그
             const tagsContainer = document.getElementById('detail-tags');
             if (prompt.tags && prompt.tags.length > 0) {
                 tagsContainer.innerHTML = prompt.tags
-                    .map(tag => `<span class="tag-chip">${tag}</span>`)
+                    .map(tag => `<span class="tag-chip">${escapeHtml(tag)}</span>`)
                     .join('');
                 tagsContainer.style.display = 'flex';
             } else {

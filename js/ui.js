@@ -28,6 +28,50 @@
                 .replace(/'/g, '&#39;');
         }
 
+        // T-112: 이미지 URL 스킴 화이트리스트
+        //
+        // 허용: https:// , http:// , data:image/
+        //
+        // ★ 검사 전에 코드 0x20 이하 문자를 전부 지운다.
+        //   브라우저는 URL 안의 탭·개행을 무시하고 이어붙이므로
+        //   "java(탭)script:" 같은 우회가 성립한다.
+        //   ★ 지운 결과를 그대로 돌려준다 — 검사한 문자열과 렌더하는 문자열이
+        //     달라지면 검사가 의미를 잃는다.
+        //
+        // ★ data: 는 image 서브타입만. data:text/html 은 통과시키지 않는다.
+        //   data:image/svg+xml 은 허용한다 — <img> 로 불러온 SVG 는
+        //   브라우저가 스크립트를 끈 상태로 렌더한다. 파일 업로드 경로가
+        //   image/* 를 통과시키므로 여기서 막으면 앱이 만든 값을 앱이 거부한다.
+        //   ※ 이 값을 <img> 밖(css background, <object>, href)에서 쓰게 되면
+        //     이 판단을 다시 해야 한다.
+        function safeImageUrl(value) {
+            if (value === null || value === undefined) return '';
+            const raw = String(value);
+            let url = '';
+            for (let i = 0; i < raw.length; i++) {
+                if (raw.charCodeAt(i) > 0x20) url += raw[i];
+            }
+            // 스킴 비교만 소문자로. base64 본문은 대소문자가 의미를 가지므로 원본을 반환한다.
+            const probe = url.toLowerCase();
+            if (probe.startsWith('https://')) return url;
+            if (probe.startsWith('http://')) return url;
+            if (probe.startsWith('data:image/')) return url;
+            return '';
+        }
+
+        // T-112: 카테고리 이름 → CSS 클래스 문자열
+        //
+        // ★ class="category-badge ${name}" 은 이름에 공백이 있으면 클래스가 쪼개진다.
+        //   기본 카테고리 "이미지 생성" 이 이미 그렇다 — 클래스가
+        //   category-badge / 이미지 / 생성 셋으로 갈라진다.
+        //   "무언가 기타" 같은 이름이면 .category-badge.기타 색을 엉뚱하게 물려받는다.
+        function categoryClass(name) {
+            const token = (name === null || name === undefined ? '' : String(name))
+                .trim()
+                .replace(/\s+/g, '-');
+            return token ? 'category-badge ' + token : 'category-badge';
+        }
+
         // T-116: 프롬프트 ID 생성
         //
         // ★ crypto.randomUUID() 는 **보안 컨텍스트에서만** 제공된다.

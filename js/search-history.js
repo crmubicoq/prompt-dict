@@ -63,7 +63,11 @@
             
             list.innerHTML = searchHistory.map((query, index) => `
                 <div class="search-history-item">
-                    <span onclick="applySearchHistory('${query.replace(/'/g, "\\'")}'); event.stopPropagation();">${query}</span>
+                    <!-- ★ onclick 은 T-113에서 이벤트 위임으로 전환 예정.
+                         이스케이프로는 막을 수 없다 (devlog 참조).
+                         남아 있는 replace 는 보안 조치가 아니라 따옴표가 든 검색어에서
+                         핸들러가 구문 오류로 죽는 것을 막는 임시 방편이다. -->
+                    <span onclick="applySearchHistory('${query.replace(/'/g, "\\'")}'); event.stopPropagation();">${escapeHtml(query)}</span>
                     <span class="remove-btn" onclick="removeFromSearchHistory(${index}); event.stopPropagation();" title="삭제">×</span>
                 </div>
             `).join('');

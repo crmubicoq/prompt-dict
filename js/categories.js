@@ -12,7 +12,7 @@
             categories.forEach(cat => {
                 // 각 카테고리별 프롬프트 개수 계산
                 const count = allPrompts.filter(p => p.category === cat.name).length;
-                html += `<li><button class="category-btn" data-category="${cat.name}">${cat.emoji} ${cat.name} (${count})</button></li>`;
+                html += `<li><button class="category-btn" data-category="${escapeHtml(cat.name)}">${escapeHtml(cat.emoji)} ${escapeHtml(cat.name)} (${count})</button></li>`;
             });
 
             // T-101: 미분류는 categories 배열 밖의 고정 항목이다.
@@ -82,7 +82,7 @@
             // T-101: 빈 값 = 미분류. 나중에 정리할 수 있도록 선택을 강제하지 않는다.
             let html = '<option value="">선택 안 함 (미분류)</option>';
             categories.forEach(cat => {
-                html += `<option value="${cat.name}">${cat.emoji} ${cat.name}</option>`;
+                html += `<option value="${escapeHtml(cat.name)}">${escapeHtml(cat.emoji)} ${escapeHtml(cat.name)}</option>`;
             });
             
             select.innerHTML = html;
@@ -188,7 +188,7 @@
             categories.forEach((cat, index) => {
                 html += `
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background-color: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-color);">
-                        <span style="font-size: 14px; font-weight: 500;">${cat.emoji} ${cat.name}</span>
+                        <span style="font-size: 14px; font-weight: 500;">${escapeHtml(cat.emoji)} ${escapeHtml(cat.name)}</span>
                         <div style="display: flex; gap: 8px;">
                             <button onclick="editCategory(${index})" class="btn-submit" style="padding: 6px 12px; font-size: 12px; background-color: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border-color);">수정</button>
                             <button onclick="deleteCategory(${index})" class="btn-cancel" style="padding: 6px 12px; font-size: 12px;">삭제</button>
