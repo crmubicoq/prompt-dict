@@ -381,29 +381,79 @@
         }
 
         // 데이터 내보내기 (JSON 다운로드)
+        //
+        // ★ T-114: version '2.0' — 프롬프트·즐겨찾기만 담던 것을 전 항목으로 넓혔다(B3).
+        //   백업이 불완전하면 복원이 아니라 부분 손실이다.
+        //
+        // ★ 미분류는 categories 배열 밖의 상수라 내보내지 않는다 (T-101).
+        //   내보내면 불러올 때 관리 목록에 실체가 생겨 삭제·수정이 가능해진다.
+        //
+        // ★ theme 은 settings 로 따로 담는다. 데이터가 아니라 기기 취향이라
+        //   불러오기에서 '덮어쓰기'일 때만 되살린다 (importData 참조).
         function exportData() {
             const data = {
+                version: '2.0',
+                exportDate: new Date().toISOString(),
                 prompts: allPrompts,
                 favorites: [...favoriteIds],
-                exportDate: new Date().toISOString(),
-                version: '1.0'
+                categories: categories,
+                searchHistory: searchHistory,
+                settings: {
+                    theme: document.body.classList.contains('dark-mode') ? 'dark' : 'light'
+                }
             };
 
             const jsonStr = JSON.stringify(data, null, 2);
             const blob = new Blob([jsonStr], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
-            
+
             const a = document.createElement('a');
             a.href = url;
             a.download = `prompts-backup-${new Date().toISOString().split('T')[0]}.json`;
             a.click();
-            
+
             URL.revokeObjectURL(url);
-            showToast('데이터 내보내기 완료! 💾');
-            console.log('데이터 내보내기 완료');
+            showToast(
+                `내보내기 완료! 💾 프롬프트 ${allPrompts.length} · 카테고리 ${categories.length} · ` +
+                `즐겨찾기 ${favoriteIds.size} · 검색기록 ${searchHistory.length}`
+            );
+            console.log('[내보내기] v2.0', {
+                prompts: allPrompts.length,
+                categories: categories.length,
+                favorites: favoriteIds.size,
+                searchHistory: searchHistory.length
+            });
+        }
+
+        // 불러올 카테고리 목록을 다듬는다.
+        //
+        // ★ 미분류는 걸러낸다. categories 배열 밖에 있어야 관리 화면에서
+        //   삭제·수정될 수 없다는 T-101 불변식이 유지된다.
+        // ★ id 가 없으면 채운다 (T-113 이전 백업).
+        function sanitizeImportedCategories(list) {
+            if (!Array.isArray(list)) return [];
+
+            return list
+                .filter(function (cat) {
+                    return cat && typeof cat.name === 'string' &&
+                           cat.name.trim().length > 0 &&
+                           cat.name !== UNCATEGORIZED;
+                })
+                .map(function (cat) {
+                    return {
+                        id: cat.id || newId(),
+                        emoji: typeof cat.emoji === 'string' && cat.emoji ? cat.emoji : '📁',
+                        name: cat.name
+                    };
+                });
         }
 
         // 데이터 불러오기 (JSON 업로드)
+        //
+        // ★ T-114: v1.0 백업도 그대로 받는다.
+        //   version 문자열로 분기하지 않고 **필드 존재로 판단**한다 —
+        //   v1.0 파일에는 categories 가 없으니 그 단계가 저절로 건너뛰어진다.
+        //   version 을 믿고 분기하면 손으로 고친 파일에서 어긋난다.
         function importData(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -414,8 +464,14 @@
                     const data = JSON.parse(event.target.result);
 
                     // T-009c-1: 실패 시 되돌릴 스냅샷
-                    const snapshot = { prompts: allPrompts, favorites: favoriteIds };
-                    
+                    // ★ 네 가지 전부 담는다. 하나라도 빠지면 부분 복원이 된다.
+                    const snapshot = {
+                        prompts: allPrompts,
+                        favorites: favoriteIds,
+                        categories: categories,
+                        searchHistory: searchHistory
+                    };
+
                     if (!data.prompts || !Array.isArray(data.prompts)) {
                         throw new Error('유효하지 않은 파일 형식입니다.');
                     }
@@ -445,40 +501,136 @@
 
                     // 즐겨찾기 복원
                     if (data.favorites) {
-                        favoriteIds = new Set(data.favorites);
+                        favoriteIds = shouldMerge
+                            ? new Set([...favoriteIds, ...data.favorites])
+                            : new Set(data.favorites);
                     }
 
-                    // 저장 — 프롬프트와 즐겨찾기 둘 다 바뀌었다
+                    // --- T-114: 카테고리 ---
+                    //
+                    // ★ 이름으로 맞춘다. id 가 아니다.
+                    //   프롬프트는 카테고리를 **이름으로** 가리킨다(p.category === cat.name).
+                    //   id 가 달라도 이름이 같으면 같은 카테고리로 취급해야 한다.
+                    //   id 로 맞추면 이름이 겹치는 카테고리가 둘 생기고,
+                    //   그러면 한 프롬프트가 두 카테고리에 동시에 걸린다.
+                    //
+                    // ★ 병합은 '없는 것만 추가'다. 이미 있는 이름은 내 것을 지킨다 —
+                    //   내가 고친 이모지를 남의 백업이 되돌리면 안 된다.
+                    let importedCategoryCount = 0;
+                    if (Array.isArray(data.categories)) {
+                        const incoming = sanitizeImportedCategories(data.categories);
+
+                        if (shouldMerge) {
+                            const existingNames = new Set(categories.map(c => c.name));
+                            const added = incoming.filter(c => !existingNames.has(c.name));
+                            categories = [...categories, ...added];
+                            importedCategoryCount = added.length;
+                        } else {
+                            categories = incoming;
+                            importedCategoryCount = incoming.length;
+                        }
+                    }
+
+                    // --- T-114: 검색 기록 ---
+                    if (Array.isArray(data.searchHistory)) {
+                        const incomingHistory = data.searchHistory.filter(function (q) {
+                            return typeof q === 'string' && q.trim().length > 0;
+                        });
+
+                        const merged = shouldMerge
+                            ? [...searchHistory, ...incomingHistory]
+                            : incomingHistory;
+
+                        // 중복 제거 후 상한 유지 (addToSearchHistory 와 같은 규약)
+                        searchHistory = [...new Set(merged)].slice(0, MAX_SEARCH_HISTORY);
+                    }
+
+                    // --- 저장 ---
+                    // 바뀐 것만 저장한다. 어느 하나라도 실패하면 전부 되돌린다.
                     const okPrompts = await PromptStorage.savePrompts(allPrompts);
                     const okFavorites = okPrompts === true
                         ? await PromptStorage.saveFavorites(favoriteIds)
                         : false;
+                    const okCategories = okFavorites === true
+                        ? await PromptStorage.saveCategories(categories)
+                        : false;
+                    const okHistory = okCategories === true
+                        ? await PromptStorage.saveSearchHistory(searchHistory)
+                        : false;
 
-                    if (okPrompts !== true || okFavorites !== true) {
+                    if (okPrompts !== true || okFavorites !== true ||
+                        okCategories !== true || okHistory !== true) {
                         allPrompts = snapshot.prompts;
                         favoriteIds = snapshot.favorites;
+                        categories = snapshot.categories;
+                        searchHistory = snapshot.searchHistory;
 
-                        if (okPrompts === true) {
-                            await PromptStorage.savePrompts(allPrompts);
-                        }
+                        // 앞 단계가 이미 저장됐다면 되돌린 값으로 다시 써 둔다 (최선 노력)
+                        if (okPrompts === true) await PromptStorage.savePrompts(allPrompts);
+                        if (okFavorites === true) await PromptStorage.saveFavorites(favoriteIds);
+                        if (okCategories === true) await PromptStorage.saveCategories(categories);
 
-                        renderPromptList(allPrompts);
+                        renderCategoryList();
+                        renderCategoryDropdown();
+                        renderSearchHistory();
+                        applyFilters();
                         showToast('저장 실패 — 불러오기를 되돌렸습니다 ❌');
                         return;
                     }
 
+                    // --- T-114: 테마 ---
+                    //
+                    // ★ 덮어쓰기일 때만 되살린다.
+                    //   덮어쓰기는 "이 백업 상태로 되돌린다"이고, 병합은
+                    //   "남의 프롬프트를 내 사전에 더한다"이다.
+                    //   병합에서 테마까지 바뀌면 기기 취향을 남의 파일이 뒤집는다.
+                    if (!shouldMerge && data.settings && data.settings.theme) {
+                        await applyImportedTheme(data.settings.theme);
+                    }
+
                     currentFilter = 'all';
                     currentSearchQuery = '';
-                    renderPromptList(allPrompts);
-                    
-                    showToast('데이터 불러오기 완료! ✅');
-                    console.log(`${data.prompts.length}개 프롬프트 불러옴`);
+                    renderCategoryList();
+                    renderCategoryDropdown();
+                    renderSearchHistory();
+                    applyFilters();
+
+                    // ★ 어느 카테고리에도 속하지 않게 된 프롬프트를 알린다.
+                    //   본문을 조용히 고치지 않는다 — 세어서 보여주고 사용자가 정리한다.
+                    const knownNames = new Set(categories.map(c => c.name));
+                    const orphanCount = allPrompts.filter(function (p) {
+                        return p.category && p.category !== UNCATEGORIZED && !knownNames.has(p.category);
+                    }).length;
+
+                    let message = `불러오기 완료! ✅ 프롬프트 ${allPrompts.length} · 카테고리 ${categories.length}`;
+                    if (orphanCount > 0) {
+                        message += `\n⚠ ${orphanCount}개가 목록에 없는 카테고리를 가리킵니다`;
+                    }
+                    showToast(message);
+
+                    console.log(`[불러오기] v${data.version || '1.0'} — 프롬프트 ${data.prompts.length}, ` +
+                                `카테고리 ${importedCategoryCount}, 미아 ${orphanCount}`);
                 } catch (error) {
                     alert('파일을 읽는 중 오류가 발생했습니다.\n' + error.message);
                     console.error('Import error:', error);
                 }
             };
-            
+
             reader.readAsText(file);
             e.target.value = ''; // 파일 선택 초기화
+        }
+
+        // 백업에 담긴 테마를 적용한다 (덮어쓰기 전용).
+        // 저장 실패는 치명적이지 않다 — 화면은 이미 바뀌었고 다음 로드에서 기본값으로 돌아갈 뿐이다.
+        async function applyImportedTheme(theme) {
+            const isDark = theme === 'dark';
+
+            document.body.classList.toggle('dark-mode', isDark);
+
+            const themeToggle = document.getElementById('theme-toggle');
+            if (themeToggle) themeToggle.textContent = isDark ? '☀️' : '🌙';
+
+            if (await PromptStorage.setSetting(THEME_KEY, isDark ? 'dark' : 'light') !== true) {
+                console.warn('[불러오기] 테마를 저장하지 못했습니다 — 이번 세션에서만 적용됩니다.');
+            }
         }

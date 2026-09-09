@@ -112,9 +112,17 @@
                                 category: validatedCategory,
                                 tags: prompt.tags || [],
                                 description: prompt.description || '',
+                                // T-114(B14): 메모가 통째로 소실되던 자리.
+                                //   썸네일도 같은 이유로 빠져 있었다 — 백업을 여기로 다시
+                                //   불러오면 둘 다 사라졌다.
+                                notes: prompt.notes || '',
                                 createdAt: prompt.createdAt || new Date().toISOString(),
                                 isFavorite: false
                             };
+
+                            if (prompt.thumbnailImage) {
+                                newPrompt.thumbnailImage = prompt.thumbnailImage;
+                            }
                             allPrompts.unshift(newPrompt);
                             addedCount++;
                         }
@@ -193,6 +201,8 @@
                                 category: validatedCategory,
                                 tags: values[3] ? values[3].split(';').map(t => t.trim()) : [],
                                 description: values[4] || '',
+                                // T-114(B14): 6번째 열이 있으면 메모로 읽는다
+                                notes: values[5] || '',
                                 createdAt: new Date().toISOString(),
                                 isFavorite: false
                             };
@@ -260,6 +270,8 @@
                                 category: UNCATEGORIZED,
                                 tags: [],
                                 description: '',
+                                // T-114(B14): TXT 에는 메모 개념이 없다. 빈 값으로 명시한다
+                                notes: '',
                                 createdAt: new Date().toISOString(),
                                 isFavorite: false
                             };
