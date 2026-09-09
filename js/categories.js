@@ -75,6 +75,30 @@
             }
         }
 
+        // 카테고리 <select> 를 채우는 공용 함수
+        //
+        // ★ value 는 id 다 (T-113). 이름은 editCategory 가 바꾸는 가변 값이라 키가 될 수 없다.
+        // ★ 미분류는 categories 배열 밖의 상수라 id 가 없다. value="" 를 미분류로 쓴다.
+        // ★ 이전 선택은 살린다 — 같은 작업을 이어 할 때 매번 다시 고르지 않게.
+        //
+        // T-104(일괄 붙여넣기)와 T-105(일괄 분류)가 같은 드롭다운을 쓴다.
+        // 각자 만들면 미분류 표현이 언젠가 어긋난다.
+        function renderCategoryOptionsInto(select) {
+            if (!select) return;
+
+            const previous = select.value;
+
+            let html = '<option value="">' + escapeHtml(UNCATEGORIZED) + '</option>';
+            categories.forEach(function (cat) {
+                html += '<option value="' + escapeHtml(cat.id) + '">' +
+                        escapeHtml(cat.emoji) + ' ' + escapeHtml(cat.name) + '</option>';
+            });
+            select.innerHTML = html;
+
+            select.value = previous;
+            if (select.value !== previous) select.value = '';
+        }
+
         // 카테고리 드롭다운 렌더링 (프롬프트 추가 폼)
         function renderCategoryDropdown() {
             const select = document.getElementById('prompt-category');

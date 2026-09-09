@@ -83,9 +83,15 @@
 
             <!-- 일괄 삭제 컨트롤 -->
             <div id="bulk-actions-bar" style="display: none;">
-                <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                     <button id="select-all-btn" class="btn-secondary">전체 선택</button>
                     <span id="selected-count">0개 선택됨</span>
+                    <!-- T-105: 일괄 분류. 되돌릴 수 없는 "선택 삭제"와 떨어뜨려
+                         왼쪽(일상 동작) 그룹에 둔다. -->
+                    <span class="assign-category-group">
+                        <select id="assign-category-select" class="assign-category-select"></select>
+                        <button id="assign-category-btn" class="btn-secondary">카테고리 지정</button>
+                    </span>
                 </div>
                 <div style="display: flex; gap: 8px;">
                     <button id="delete-selected-btn" class="btn-danger">선택 삭제</button>

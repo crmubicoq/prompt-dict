@@ -687,21 +687,8 @@
         // ★ 미분류는 categories 배열 밖의 상수라 id 가 없다.
         //   value="" 를 미분류로 쓴다 — categories.js renderCategoryDropdown 과 같은 관례.
         function renderBulkCategoryDropdown() {
-            const select = document.getElementById('bulk-category');
-            if (!select) return;
-
-            const previous = select.value;
-
-            let html = '<option value="">' + escapeHtml(UNCATEGORIZED) + '</option>';
-            categories.forEach(function (cat) {
-                html += '<option value="' + escapeHtml(cat.id) + '">' +
-                        escapeHtml(cat.emoji) + ' ' + escapeHtml(cat.name) + '</option>';
-            });
-            select.innerHTML = html;
-
-            // 이전 선택은 살린다 — 같은 소스를 이어 넣을 때 유용하다 (설계 §10.3)
-            select.value = previous;
-            if (select.value !== previous) select.value = '';
+            // T-105 에서 공용 함수로 뽑았다 (categories.js). 미분류 표현이 갈라지지 않게.
+            renderCategoryOptionsInto(document.getElementById('bulk-category'));
         }
 
         // 드롭다운 선택 → 실제 카테고리 이름

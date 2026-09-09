@@ -109,6 +109,10 @@
         const MAX_SEARCH_HISTORY = 5;
         let searchHistory = [];
 
+        // T-105(A안): 마지막으로 렌더한 화면(필터+검색어). 이 값이 바뀌면 선택을 비운다.
+        // ★ 정렬은 포함하지 않는다 — 순서만 바뀌고 대상 집합은 그대로다.
+        let lastViewKey = null;
+
         let isSelectionMode = false;
         let selectedPromptIds = new Set();
 

@@ -424,6 +424,20 @@
         }
 
 
+
+        /* T-105: 일괄 분류 컨트롤 */
+        .assign-category-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .assign-category-select {
+            width: auto;
+            padding: 6px 10px;
+            font-size: 13px;
+        }
+
         /* ========================================
            T-104: 일괄 붙여넣기 모달
         ======================================== */
