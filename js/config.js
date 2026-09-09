@@ -15,13 +15,17 @@
 
         // 카테고리 관리 (동적)
         let categories = [];
+        // T-113: 카테고리 id — 클릭 대상을 배열 인덱스가 아니라 id 로 찾는다.
+        // ★ 이름은 editCategory 가 바꾸는 가변 값이라 키로 쓸 수 없다.
+        // ★ 여기서 newId() 를 부르지 않는다 — config.js 는 ui.js 보다 먼저
+        //   로드되어 아직 정의되지 않았다. 샘플 데이터와 같은 이유로 리터럴이다.
         const defaultCategories = [
-            { emoji: '💻', name: '개발' },
-            { emoji: '✍️', name: '콘텐츠' },
-            { emoji: '📊', name: '분석' },
-            { emoji: '🎓', name: '교육' },
-            { emoji: '🎨', name: '이미지 생성' },
-            { emoji: '📌', name: '기타' }
+            { id: '9f2b1c40-6d3a-4e18-9a7c-2b5e8f011d61', emoji: '💻', name: '개발' },
+            { id: '3a7e5d92-8c14-4b6f-a013-7d92c4e5f832', emoji: '✍️', name: '콘텐츠' },
+            { id: 'c81f0a35-2e69-4d7b-8f45-a6b3d907e214', emoji: '📊', name: '분석' },
+            { id: '5d4c9b78-1f83-4a25-b6e9-0c7f2a84d356', emoji: '🎓', name: '교육' },
+            { id: 'e26a8f14-9b57-4c30-8d1e-4f5a7b62c908', emoji: '🎨', name: '이미지 생성' },
+            { id: '7b3d6e51-4a08-4f92-9c27-e81b5d40a763', emoji: '📌', name: '기타' }
         ];
 
         // 3.4: 샘플 데이터 3개 만들기 (테스트용)

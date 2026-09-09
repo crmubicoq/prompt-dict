@@ -44,6 +44,11 @@
             // Phase 4: 모달 관련 이벤트 리스너 등록 (Task 4.4 ~ 4.10)
             setupModalEvents();
 
+            // T-113: 이벤트 위임 등록
+            // ★ 첫 렌더보다 먼저 걸어 둔다. 위임이라 렌더 순서와 무관하지만,
+            //   나중에 옮기면 그 사이 클릭이 죽는 창이 생긴다.
+            setupEventDelegation();
+
             // Phase 5: 초기 목록 렌더링 (Task 5.5 ~ 5.8)
             renderPromptList(allPrompts);
 

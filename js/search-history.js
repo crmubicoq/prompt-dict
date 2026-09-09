@@ -61,14 +61,14 @@
             
             container.style.display = 'block';
             
-            list.innerHTML = searchHistory.map((query, index) => `
+            // T-113: onclick 을 없애고 #search-history-list 위임 리스너가 처리한다.
+            //   키는 인덱스가 아니라 검색어 자체다 — addToSearchHistory 가
+            //   중복을 제거하므로 유일하다.
+            //   따옴표 구문 오류 방지용 replace 도 함께 사라졌다 (onclick 이 없으므로).
+            list.innerHTML = searchHistory.map(query => `
                 <div class="search-history-item">
-                    <!-- ★ onclick 은 T-113에서 이벤트 위임으로 전환 예정.
-                         이스케이프로는 막을 수 없다 (devlog 참조).
-                         남아 있는 replace 는 보안 조치가 아니라 따옴표가 든 검색어에서
-                         핸들러가 구문 오류로 죽는 것을 막는 임시 방편이다. -->
-                    <span onclick="applySearchHistory('${query.replace(/'/g, "\\'")}'); event.stopPropagation();">${escapeHtml(query)}</span>
-                    <span class="remove-btn" onclick="removeFromSearchHistory(${index}); event.stopPropagation();" title="삭제">×</span>
+                    <span data-action="apply" data-query="${escapeHtml(query)}">${escapeHtml(query)}</span>
+                    <span class="remove-btn" data-action="remove" data-query="${escapeHtml(query)}" title="삭제">×</span>
                 </div>
             `).join('');
         }
@@ -84,9 +84,17 @@
         }
 
         // 검색 기록 삭제
-        // T-009c-2: 인라인 onclick 호출 — Promise 누출 방지
-        async function removeFromSearchHistory(index) {
+        // T-009c-2: 위임 리스너에서 호출 — Promise 누출 방지
+        // T-113: 인덱스가 아니라 검색어로 찾는다 (검수 F3).
+        async function removeFromSearchHistory(query) {
             try {
+                const index = searchHistory.indexOf(query);
+                if (index === -1) {
+                    // 이미 지워진 항목 — 목록만 맞춘다
+                    renderSearchHistory();
+                    return;
+                }
+
                 const snapshotHistory = [...searchHistory];
 
                 searchHistory.splice(index, 1);

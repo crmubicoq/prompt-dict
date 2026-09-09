@@ -153,6 +153,7 @@
 
             // 카테고리 추가
             const newCategory = {
+                id: newId(),   // T-113: 인덱스가 아니라 id 로 식별한다
                 emoji: emoji || '📁',
                 name: name
             };
@@ -185,13 +186,13 @@
             const container = document.getElementById('category-list-manage');
             
             let html = '';
-            categories.forEach((cat, index) => {
+            categories.forEach(cat => {
                 html += `
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background-color: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-color);">
                         <span style="font-size: 14px; font-weight: 500;">${escapeHtml(cat.emoji)} ${escapeHtml(cat.name)}</span>
                         <div style="display: flex; gap: 8px;">
-                            <button onclick="editCategory(${index})" class="btn-submit" style="padding: 6px 12px; font-size: 12px; background-color: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border-color);">수정</button>
-                            <button onclick="deleteCategory(${index})" class="btn-cancel" style="padding: 6px 12px; font-size: 12px;">삭제</button>
+                            <button data-action="edit" data-cat-id="${escapeHtml(cat.id)}" class="btn-submit" style="padding: 6px 12px; font-size: 12px; background-color: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border-color);">수정</button>
+                            <button data-action="delete" data-cat-id="${escapeHtml(cat.id)}" class="btn-cancel" style="padding: 6px 12px; font-size: 12px;">삭제</button>
                         </div>
                     </div>
                 `;
@@ -200,10 +201,15 @@
             container.innerHTML = html;
         }
 
-        // T-009c-2: 인라인 onclick 호출 — Promise 누출 방지 try/catch
-        async function deleteCategory(index) {
+        // T-009c-2: 위임 리스너에서 호출 — Promise 누출 방지 try/catch
+        // T-113: 배열 인덱스가 아니라 id 로 찾는다 (검수 F3).
+        async function deleteCategory(categoryId) {
             try {
-                const category = categories[index];
+                const category = categories.find(cat => cat.id === categoryId);
+                if (!category) {
+                    showToast('카테고리를 찾을 수 없습니다 ❌');
+                    return;
+                }
 
                 // 프롬프트 개수 확인
                 const promptCount = allPrompts.filter(p => p.category === category.name).length;
@@ -247,7 +253,16 @@
                 });
 
                 // 카테고리 삭제
-                categories.splice(index, 1);
+                // ★ confirm 두 번을 지나온 뒤이므로 위치를 다시 찾는다.
+                //   렌더 시점 인덱스를 들고 있었다면 그 사이 배열이 바뀌었을 때
+                //   엉뚱한 카테고리가 지워진다.
+                const deleteIndex = categories.findIndex(cat => cat.id === categoryId);
+                if (deleteIndex === -1) {
+                    changedPrompts.forEach(p => { p.category = oldCategoryName; });
+                    showToast('카테고리를 찾을 수 없습니다 ❌');
+                    return;
+                }
+                categories.splice(deleteIndex, 1);
 
                 // 저장 — 카테고리와 프롬프트 둘 다 바뀌었다
                 const okCategories = await PromptStorage.saveCategories(categories);
@@ -287,10 +302,15 @@
         }
 
         // 카테고리 수정 함수
-        // T-009c-2: 인라인 onclick 호출 — Promise 누출 방지 try/catch
-        async function editCategory(index) {
+        // T-009c-2: 위임 리스너에서 호출 — Promise 누출 방지 try/catch
+        // T-113: 배열 인덱스가 아니라 id 로 찾는다 (검수 F3).
+        async function editCategory(categoryId) {
             try {
-                const category = categories[index];
+                const category = categories.find(cat => cat.id === categoryId);
+                if (!category) {
+                    showToast('카테고리를 찾을 수 없습니다 ❌');
+                    return;
+                }
 
                 // 프롬프트 개수 확인
                 const promptCount = allPrompts.filter(p => p.category === category.name).length;
@@ -326,7 +346,7 @@
                 }
 
                 // 중복 검사 (자기 자신 제외)
-                const exists = categories.some((cat, i) => i !== index && cat.name === trimmedName);
+                const exists = categories.some(cat => cat.id !== categoryId && cat.name === trimmedName);
                 if (exists) {
                     alert('이미 존재하는 카테고리 이름입니다.');
                     return;

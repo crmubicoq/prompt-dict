@@ -347,6 +347,19 @@
                     throw new Error('기본 카테고리를 저장하지 못했습니다.');
                 }
             }
+
+            // T-113: 카테고리 id 백필
+            // ★ id 는 T-113에서 도입됐다. 그 전에 저장된 카테고리에는 없다.
+            //   실데이터는 0건이지만 개발 중 브라우저에 남은 것이 있으므로 채운다.
+            // ★ 여기서의 저장 실패는 치명적이지 않다 — id 는 렌더와 클릭을 잇는
+            //   세션 내 식별자라, 저장이 안 되면 다음 로드에서 다시 채워질 뿐이다.
+            //   초기화를 중단시키지 않는다. 대신 조용히 넘기지도 않는다.
+            if (categories.some(cat => cat && !cat.id)) {
+                categories.forEach(cat => { if (cat && !cat.id) cat.id = newId(); });
+                if (await PromptStorage.saveCategories(categories) !== true) {
+                    console.warn('[초기화] 카테고리 id 백필을 저장하지 못했습니다 — 이번 세션에서만 유지됩니다.');
+                }
+            }
             console.log(`카테고리 ${categories.length}개 로드 완료 ✅`);
         }
 

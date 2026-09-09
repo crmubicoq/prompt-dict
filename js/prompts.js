@@ -125,9 +125,7 @@
             // 태그 HTML 생성 (클릭 가능하게)
             const tagsHTML = prompt.tags && prompt.tags.length > 0
                 ? prompt.tags.map(tag =>
-                    // ★ onclick 은 T-113에서 이벤트 위임으로 전환 예정.
-                    //   이스케이프로는 막을 수 없다 (devlog 참조)
-                    `<span class="tag-chip" onclick="filterByTag('${tag}'); event.stopPropagation();">${escapeHtml(tag)}</span>`
+                    `<span class="tag-chip" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</span>`
                   ).join('')
                 : '';
 
@@ -136,11 +134,8 @@
 
             // 선택 모드 체크박스
             const checkboxHTML = isSelectionMode 
-                // ★ onclick 은 T-113에서 이벤트 위임으로 전환 예정.
-                //   이스케이프로는 막을 수 없다 (devlog 참조)
-                ? `<input type="checkbox" class="prompt-checkbox" 
-                          onclick="togglePromptSelection('${prompt.id}', event);"
-                          ${selectedPromptIds.has(prompt.id) ? 'checked' : ''}>` 
+                ? `<input type="checkbox" class="prompt-checkbox"
+                          ${selectedPromptIds.has(prompt.id) ? 'checked' : ''}>`
                 : '';
 
             const selectionClass = isSelectionMode ? 'selection-mode' : '';
@@ -154,8 +149,8 @@
             const thumbnailHTML = !prompt.thumbnailImage
                 ? ''
                 : thumbnailUrl
-                    ? `<img src="${escapeHtml(thumbnailUrl)}" alt="${escapeHtml(prompt.title)}" class="card-thumbnail" onclick="event.stopPropagation();">`
-                    : `<div class="card-thumbnail card-thumbnail-blocked" onclick="event.stopPropagation();">🚫 표시할 수 없는 이미지 형식</div>`;
+                    ? `<img src="${escapeHtml(thumbnailUrl)}" alt="${escapeHtml(prompt.title)}" class="card-thumbnail">`
+                    : `<div class="card-thumbnail card-thumbnail-blocked">🚫 표시할 수 없는 이미지 형식</div>`;
 
             // 카드 HTML
             return `
@@ -167,9 +162,8 @@
                     
                     <div class="card-header">
                         <h3 class="card-title">${escapeHtml(prompt.title)}</h3>
-                        <button class="favorite-btn ${isFavorite ? 'active' : ''}" 
-                                data-id="${escapeHtml(prompt.id)}"
-                                onclick="toggleFavorite('${prompt.id}'); event.stopPropagation();">
+                        <button class="favorite-btn ${isFavorite ? 'active' : ''}"
+                                data-id="${escapeHtml(prompt.id)}">
                             ${favoriteIcon}
                         </button>
                     </div>
@@ -186,6 +180,118 @@
                     </div>
                 </div>
             `;
+        }
+
+        // ========================================
+        // T-113: 이벤트 위임
+        // ========================================
+        //
+        // 인라인 onclick 을 전부 없앤다. 이스케이프로는 막을 수 없기 때문이다 —
+        // HTML 파서가 엔티티를 되돌린 뒤 그 결과를 JS 로 파싱하므로, 따옴표가
+        // 속성을 탈출해 임의 HTML 이 삽입된다 (T-112에서 실측).
+        //
+        // ★ 리스너는 재렌더에도 살아남는 고정 컨테이너에 건다.
+        //   innerHTML 대입은 자식만 갈아치우고 컨테이너 자신은 남으므로
+        //   #prompts-grid / #category-list-manage / #search-history-list 에
+        //   한 번만 걸면 된다. 항목마다 걸면 재렌더 때마다 다시 걸어야 한다.
+        //
+        // ★ 식별자는 dataset 으로 읽는다. 속성에는 escapeHtml 로 넣고,
+        //   dataset 은 브라우저가 엔티티를 푼 원본 문자열을 돌려준다.
+        //
+        // ★ 리스너를 async 로 두고 본문 전체를 try/catch 로 감싼다.
+        //   각 핸들러의 try/catch(T-009c-2)는 원인별 문구가 더 친절하므로 남기고,
+        //   여기서는 그 바깥에서 새는 것만 받는다 — 두 겹으로 막아
+        //   위임 리스너가 거부된 Promise 를 흘리지 않게 한다.
+        function setupEventDelegation() {
+            // ---------- 카드 그리드 ----------
+            const grid = document.getElementById('prompts-grid');
+            if (grid) {
+                grid.addEventListener('click', async function (event) {
+                    try {
+                        const target = event.target;
+                        if (!target || typeof target.closest !== 'function') return;
+
+                        const card = target.closest('.prompt-card');
+                        if (!card) return;
+                        const id = card.dataset.id;
+
+                        // 썸네일 클릭은 아무 동작도 하지 않는다 (기존 stopPropagation 동작 유지)
+                        if (target.closest('.card-thumbnail')) return;
+
+                        const chip = target.closest('.tag-chip');
+                        if (chip) {
+                            filterByTag(chip.dataset.tag);
+                            return;
+                        }
+
+                        if (target.closest('.prompt-checkbox')) {
+                            togglePromptSelection(id);
+                            return;
+                        }
+
+                        if (target.closest('.favorite-btn')) {
+                            await toggleFavorite(id);
+                            return;
+                        }
+
+                        openDetailModal(id);
+                    } catch (error) {
+                        console.error('[카드] 처리 중 예외:', error);
+                        showToast('처리 중 오류가 발생했습니다 ❌');
+                    }
+                });
+            }
+
+            // ---------- 카테고리 관리 목록 ----------
+            const manageList = document.getElementById('category-list-manage');
+            if (manageList) {
+                manageList.addEventListener('click', async function (event) {
+                    try {
+                        const target = event.target;
+                        if (!target || typeof target.closest !== 'function') return;
+
+                        const btn = target.closest('button[data-cat-id]');
+                        if (!btn) return;
+
+                        // ★ 인덱스가 아니라 id 다 (검수 F3).
+                        const catId = btn.dataset.catId;
+                        if (btn.dataset.action === 'edit') {
+                            await editCategory(catId);
+                        } else if (btn.dataset.action === 'delete') {
+                            await deleteCategory(catId);
+                        }
+                    } catch (error) {
+                        console.error('[카테고리] 처리 중 예외:', error);
+                        showToast('처리 중 오류가 발생했습니다 ❌');
+                    }
+                });
+            }
+
+            // ---------- 검색 기록 ----------
+            const historyList = document.getElementById('search-history-list');
+            if (historyList) {
+                historyList.addEventListener('click', async function (event) {
+                    try {
+                        const target = event.target;
+                        if (!target || typeof target.closest !== 'function') return;
+
+                        const el = target.closest('[data-action]');
+                        if (!el) return;
+
+                        // ★ 인덱스가 아니라 검색어 자체가 키다.
+                        //   addToSearchHistory 가 중복을 제거하므로 유일하다.
+                        const query = el.dataset.query;
+                        if (el.dataset.action === 'apply') {
+                            applySearchHistory(query);
+                        } else if (el.dataset.action === 'remove') {
+                            await removeFromSearchHistory(query);
+                        }
+                    } catch (error) {
+                        console.error('[검색 기록] 처리 중 예외:', error);
+                        showToast('처리 중 오류가 발생했습니다 ❌');
+                    }
+                });
+            }
         }
 
         // Phase 8: 태그로 필터링
@@ -216,15 +322,8 @@
             const cardsHTML = prompts.map(prompt => createPromptCard(prompt)).join('');
             grid.innerHTML = cardsHTML;
 
-            // 카드 클릭 이벤트 등록 (Phase 9에서 상세 보기 연결 예정)
-            const cards = grid.querySelectorAll('.prompt-card');
-            cards.forEach(card => {
-                card.addEventListener('click', function() {
-                    const id = this.dataset.id; // T-116: UUID 문자열
-                    // Phase 9: 상세 보기 모달 열기
-                    openDetailModal(id);
-                });
-            });
+            // T-113: 카드별 리스너를 걸지 않는다.
+            //   #prompts-grid 에 위임 리스너 하나가 걸려 있다 (setupEventDelegation).
 
             console.log(`${prompts.length}개의 프롬프트 카드 렌더링 완료 ✅`);
             
