@@ -114,3 +114,169 @@
                 none: splitChunks(text, 'none').length
             };
         }
+
+        // ========================================
+        // T-104b: 모달 · 구분자 개수 실시간 표시
+        // ========================================
+        //
+        // ★ 인라인 onclick 을 쓰지 않는다 (T-113). 모달 컨테이너에 위임한다.
+        // ★ 접힌/숨긴 영역에 required 를 두지 않는다 (T-102 회귀 항목).
+        //   이 모달에는 required 가 하나도 없다 — 등록 가능 여부는 조각 개수로 판단한다.
+
+        // 지금 선택된 구분자
+        function currentBulkDelimiter() {
+            const checked = document.querySelector('input[name="bulk-delimiter"]:checked');
+            return checked ? checked.value : 'blank2';
+        }
+
+        // 조각이 너무 많을 때의 경고 (설계 §10.2)
+        //
+        // ★ 막지 않는다. 전량 롤백이 있어 실수해도 복구되고,
+        //   막으면 정당한 대량 입력까지 막힌다.
+        // ★ 개수만 보여주지 않는다. 실제 원인 1순위를 문장으로 지목한다 —
+        //   숫자만 보면 사용자가 원인을 짐작해야 한다.
+        function updateBulkWarning(count) {
+            const el = document.getElementById('bulk-warning');
+            if (!el) return;
+
+            if (typeof count === 'number' && count > 200) {
+                // textContent 다 — 숫자뿐이라 주입 여지가 없고, 이스케이프도 필요 없다
+                el.textContent =
+                    '⚠ 조각이 ' + count + '개입니다. 구분자를 잘못 고르셨을 수 있습니다.\n' +
+                    '각 조각의 길이를 확인해 주세요. 등록을 막지는 않습니다 — ' +
+                    '저장에 실패하면 전부 되돌립니다.';
+                el.style.display = 'block';
+            } else {
+                el.textContent = '';
+                el.style.display = 'none';
+            }
+        }
+
+        // 툴바 요약 (T-104c 에서 "N개 중 M개 선택" 으로 확장된다)
+        function updateBulkSummary(text, delimiter, count) {
+            const el = document.getElementById('bulk-summary');
+            if (!el) return;
+
+            if (String(text).trim().length === 0) {
+                el.textContent = '붙여넣은 텍스트가 없습니다';
+            } else if (count === null) {
+                el.textContent = '직접 입력 구분자를 입력해 주세요';
+            } else {
+                el.textContent = '조각 ' + count + '개';
+            }
+        }
+
+        // 모든 구분자의 개수를 다시 계산해 화면에 반영한다.
+        function refreshBulkCounts() {
+            const textEl = document.getElementById('bulk-text');
+            if (!textEl) return;
+
+            const customEl = document.getElementById('bulk-custom-delimiter');
+            const text = textEl.value;
+            const counts = countByDelimiter(text, customEl ? customEl.value : '');
+
+            // 옵션별 개수
+            Object.keys(counts).forEach(function (kind) {
+                const el = document.querySelector('[data-count-for="' + kind + '"]');
+                if (!el) return;
+                el.textContent = counts[kind] === null ? '(—)' : '(' + counts[kind] + '개)';
+            });
+
+            // 선택된 옵션 강조 — 무엇이 등록될지 한눈에 보이게 한다
+            const selected = currentBulkDelimiter();
+            const options = document.querySelectorAll('#bulk-delimiter-group .bulk-delimiter-option');
+            options.forEach(function (option) {
+                const radio = option.querySelector('input[type="radio"]');
+                option.classList.toggle('selected', !!radio && radio.value === selected);
+            });
+
+            const selectedCount = counts[selected];
+            updateBulkSummary(text, selected, selectedCount);
+            updateBulkWarning(selectedCount);
+        }
+
+        function openBulkModal() {
+            const overlay = document.getElementById('bulk-modal-overlay');
+            if (!overlay) return;
+
+            overlay.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            refreshBulkCounts();
+
+            const textEl = document.getElementById('bulk-text');
+            if (textEl) textEl.focus();
+        }
+
+        function closeBulkModal() {
+            const textEl = document.getElementById('bulk-text');
+
+            // ★ 기존 추가 모달(closeModal)과 같은 관례 — 작성 중인 내용이 있으면 확인한다.
+            //   150개를 붙여넣고 배경을 잘못 눌러 날리는 것이 가장 아픈 실수다.
+            //   등록 후에는 textarea 가 비므로 이 확인이 뜨지 않는다.
+            if (textEl && textEl.value.trim().length > 0) {
+                const shouldClose = confirm(
+                    '⚠️ 붙여넣은 텍스트가 있습니다.\n' +
+                    '정말 닫으시겠습니까?\n\n' +
+                    '아직 등록하지 않은 내용이 모두 사라집니다.'
+                );
+                if (!shouldClose) return;
+            }
+
+            const overlay = document.getElementById('bulk-modal-overlay');
+            if (overlay) overlay.style.display = 'none';
+            document.body.style.overflow = 'auto';
+
+            if (textEl) textEl.value = '';
+
+            const list = document.getElementById('bulk-preview-list');
+            if (list) list.innerHTML = '';
+
+            // 구분자 선택과 직접 입력 값은 남긴다 — 같은 소스를 이어 넣을 때 유용하다 (설계 §10.3)
+            refreshBulkCounts();
+        }
+
+        // 초기화. main.js 에서 한 번 호출한다.
+        function setupBulkPaste() {
+            const openBtn = document.getElementById('bulk-paste-btn');
+            const overlay = document.getElementById('bulk-modal-overlay');
+            const modal = document.getElementById('bulk-modal');
+            if (!openBtn || !overlay || !modal) return;
+
+            openBtn.addEventListener('click', openBulkModal);
+
+            const closeBtn = document.getElementById('close-bulk-modal');
+            if (closeBtn) closeBtn.addEventListener('click', closeBulkModal);
+
+            const cancelBtn = document.getElementById('bulk-cancel-btn');
+            if (cancelBtn) cancelBtn.addEventListener('click', closeBulkModal);
+
+            // 배경 클릭 (기존 모달과 동일 — closeBulkModal 이 확인을 담당한다)
+            overlay.addEventListener('click', function (event) {
+                if (event.target === overlay) closeBulkModal();
+            });
+
+            // ★ 개수 계산을 한 틱 미뤄 합친다.
+            //   같은 입력에 input 과 change 가 함께 오는 경우가 있어 두 번 도는 것을 막는다.
+            //   (1000개·811KB 에 2ms 라 성능 자체는 여유가 있다)
+            let pending = 0;
+            function scheduleRefresh() {
+                if (pending) return;
+                pending = setTimeout(function () {
+                    pending = 0;
+                    refreshBulkCounts();
+                }, 0);
+            }
+
+            modal.addEventListener('input', function (event) {
+                // 직접 입력 칸에 쓰면 그 라디오를 자동으로 고른다 —
+                // 입력했는데 아무 일도 일어나지 않는 상태를 만들지 않는다.
+                if (event.target && event.target.id === 'bulk-custom-delimiter') {
+                    const customRadio = modal.querySelector('input[name="bulk-delimiter"][value="custom"]');
+                    if (customRadio) customRadio.checked = true;
+                }
+                scheduleRefresh();
+            });
+
+            modal.addEventListener('change', scheduleRefresh);
+        }

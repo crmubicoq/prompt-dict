@@ -101,6 +101,7 @@
             <!-- 1.8: 새 프롬프트 추가 버튼 & 선택 모드 -->
             <div style="display: flex; gap: 12px;">
                 <button id="add-prompt-btn" style="flex: 1;">+ 새 프롬프트 추가</button>
+                <button id="bulk-paste-btn" style="flex: 0 0 auto; min-width: 150px; background-color: #6f42c1;">📋 여러 개 붙여넣기</button>
                 <button id="toggle-selection-mode-btn" style="flex: 0 0 auto; min-width: 120px; background-color: #6c757d;">✓ 선택 모드</button>
             </div>
 
@@ -156,6 +157,96 @@
                         <button id="duplicate-prompt-btn" class="btn-submit" style="padding: 8px 16px; font-size: 13px; background-color: #28a745;">📋 복제</button>
                         <button id="delete-prompt-btn" class="btn-cancel" style="padding: 8px 16px; font-size: 13px; background-color: #dc3545; color: white; border: none;">🗑️ 삭제</button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================
+         T-104: 일괄 붙여넣기 모달
+    ======================================== -->
+    <div id="bulk-modal-overlay" class="modal-overlay" style="display: none;">
+        <div id="bulk-modal" class="modal-content bulk-modal-content">
+            <div class="modal-header">
+                <h2>📋 여러 개 붙여넣기</h2>
+                <button class="close-btn" id="close-bulk-modal">✕</button>
+            </div>
+
+            <div style="padding: 24px;">
+                <!-- 붙여넣기 -->
+                <div class="form-group">
+                    <label for="bulk-text">텍스트 붙여넣기</label>
+                    <textarea
+                        id="bulk-text"
+                        rows="8"
+                        placeholder="메모장 · 카톡 · LLM 대화기록에서 복사한 텍스트를 그대로 붙여넣으세요."
+                    ></textarea>
+                    <small>본문은 원문 그대로 저장됩니다. 앞뒤 공백만 다듬습니다.</small>
+                </div>
+
+                <!-- 구분자 -->
+                <div class="form-group">
+                    <label>구분자</label>
+                    <div id="bulk-delimiter-group" class="bulk-delimiters">
+                        <label class="bulk-delimiter-option">
+                            <input type="radio" name="bulk-delimiter" value="blank2" checked>
+                            <span>빈 줄 2개</span>
+                            <span class="bulk-count" data-count-for="blank2">(0개)</span>
+                        </label>
+                        <label class="bulk-delimiter-option">
+                            <input type="radio" name="bulk-delimiter" value="dashes">
+                            <span>---</span>
+                            <span class="bulk-count" data-count-for="dashes">(0개)</span>
+                        </label>
+                        <label class="bulk-delimiter-option">
+                            <input type="radio" name="bulk-delimiter" value="equals">
+                            <span>===</span>
+                            <span class="bulk-count" data-count-for="equals">(0개)</span>
+                        </label>
+                        <label class="bulk-delimiter-option">
+                            <input type="radio" name="bulk-delimiter" value="custom">
+                            <span>직접 입력</span>
+                            <input
+                                type="text"
+                                id="bulk-custom-delimiter"
+                                class="bulk-custom-input"
+                                placeholder="예: ===PROMPT==="
+                            >
+                            <span class="bulk-count" data-count-for="custom">(—)</span>
+                        </label>
+                        <label class="bulk-delimiter-option">
+                            <input type="radio" name="bulk-delimiter" value="none">
+                            <span>나누지 않음</span>
+                            <span class="bulk-count" data-count-for="none">(0개)</span>
+                        </label>
+                    </div>
+                    <small>모든 옵션의 개수가 함께 보입니다. 숫자가 이상하면 다른 구분자를 골라보세요.</small>
+                </div>
+
+                <!-- 조각이 너무 많을 때 경고 (막지 않는다) -->
+                <div id="bulk-warning" class="bulk-warning" style="display: none;"></div>
+
+                <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--border-light);">
+
+                <!-- 툴바 -->
+                <div class="bulk-toolbar">
+                    <span id="bulk-summary" class="bulk-summary">붙여넣은 텍스트가 없습니다</span>
+                    <button type="button" id="ai-organize-btn" class="btn-cancel" disabled
+                            title="P4에서 연결됩니다. 제목·카테고리·태그를 자동으로 제안합니다. 본문은 수정하지 않습니다.">
+                        ✨ AI 자동정리 (P4)
+                    </button>
+                </div>
+
+                <!-- 미리보기 목록 (T-104c에서 채운다) -->
+                <div id="bulk-preview-list" class="bulk-preview-list"></div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="bulk-cancel-btn">
+                        취소
+                    </button>
+                    <button type="button" class="btn-submit" id="bulk-submit-btn" disabled>
+                        등록
+                    </button>
                 </div>
             </div>
         </div>

@@ -67,6 +67,9 @@
             // 파일 업로드 설정
             setupFileUpload();
 
+            // T-104: 일괄 붙여넣기 설정
+            setupBulkPaste();
+
             // 태그 자동완성 설정
             setupTagAutocomplete();
 
