@@ -186,6 +186,10 @@
             overlay.style.display = 'flex';
             document.body.style.overflow = 'hidden';
 
+            // 카테고리는 그 사이 바뀌었을 수 있으니 열 때마다 다시 그린다
+            renderBulkCategoryDropdown();
+            updateBulkSessionCount();
+
             refreshBulkSource();
 
             const textEl = document.getElementById('bulk-text');
@@ -296,6 +300,11 @@
             const selectNoneBtn = document.getElementById('bulk-select-none');
             if (selectNoneBtn) selectNoneBtn.addEventListener('click', function () { setAllBulkChecked(false); });
 
+            // 등록 — async 핸들러의 Promise 가 새지 않도록 submitBulkPrompts 내부가
+            // 본문 전체를 try/catch 로 감싼다 (T-009c-2 관례)
+            const submitBtn = document.getElementById('bulk-submit-btn');
+            if (submitBtn) submitBtn.addEventListener('click', function () { submitBulkPrompts(); });
+
             setupBulkPreviewDelegation();
         }
 
@@ -317,7 +326,9 @@
                     rows: [],        // { chunk, title, body, checked, expanded, warnings }
                     sourceText: '',  // 마지막으로 렌더한 원본
                     delimiter: 'blank2',
-                    custom: ''
+                    custom: '',
+                    sessionCount: 0, // 이번 세션 누적 등록 수 (설계 §10.3)
+                    saving: false    // 중복 클릭 방지
                 };
             }
             return window.__bulkState;
@@ -507,9 +518,11 @@
                 }
             }
 
-            // 등록 버튼은 T-104e 에서 연결한다. 지금은 라벨만 맞춰 둔다.
             const submitBtn = document.getElementById('bulk-submit-btn');
-            if (submitBtn) submitBtn.textContent = selected > 0 ? selected + '개 등록' : '등록';
+            if (submitBtn && !bulkState().saving) {
+                submitBtn.textContent = selected > 0 ? selected + '개 등록' : '등록';
+                submitBtn.disabled = selected === 0;
+            }
         }
 
         // 원본(텍스트·구분자)이 바뀌었을 때 미리보기를 다시 만든다.
@@ -662,4 +675,182 @@
             const radio = document.querySelector(
                 'input[name="bulk-delimiter"][value="' + state.delimiter + '"]');
             if (radio) radio.checked = true;
+        }
+
+        // ========================================
+        // T-104e: 카테고리 일괄 지정 · 저장
+        // ========================================
+
+        // 카테고리 드롭다운 (일괄 지정)
+        //
+        // ★ value 는 id 다 (T-113). 이름은 editCategory 가 바꾸는 가변 값이라 키가 될 수 없다.
+        // ★ 미분류는 categories 배열 밖의 상수라 id 가 없다.
+        //   value="" 를 미분류로 쓴다 — categories.js renderCategoryDropdown 과 같은 관례.
+        function renderBulkCategoryDropdown() {
+            const select = document.getElementById('bulk-category');
+            if (!select) return;
+
+            const previous = select.value;
+
+            let html = '<option value="">' + escapeHtml(UNCATEGORIZED) + '</option>';
+            categories.forEach(function (cat) {
+                html += '<option value="' + escapeHtml(cat.id) + '">' +
+                        escapeHtml(cat.emoji) + ' ' + escapeHtml(cat.name) + '</option>';
+            });
+            select.innerHTML = html;
+
+            // 이전 선택은 살린다 — 같은 소스를 이어 넣을 때 유용하다 (설계 §10.3)
+            select.value = previous;
+            if (select.value !== previous) select.value = '';
+        }
+
+        // 드롭다운 선택 → 실제 카테고리 이름
+        function selectedBulkCategoryName() {
+            const select = document.getElementById('bulk-category');
+            const id = select ? select.value : '';
+            if (!id) return UNCATEGORIZED;
+
+            const found = categories.filter(function (cat) { return cat.id === id; })[0];
+            // 고른 카테고리가 그 사이 삭제됐다면 미분류로 — 없는 이름을 심지 않는다
+            return found ? found.name : UNCATEGORIZED;
+        }
+
+        // 행 하나 → 프롬프트 객체
+        //
+        // ★ 형태는 handleFormSubmit 의 추가 경로와 같다.
+        // ★ content 는 사용자가 편집한 값 그대로. trim 외에 손대지 않는다 (CLAUDE.md 절대 금지).
+        function buildBulkPrompt(row, categoryName, createdAt) {
+            const content = String(row.body).trim();
+
+            return {
+                id: newId(),
+                title: String(row.title).trim() || suggestTitle(content) || '제목 없음',
+                content: content,
+                category: categoryName,
+                tags: [],
+                description: '',
+                notes: '',
+                createdAt: createdAt,
+                isFavorite: false
+            };
+        }
+
+        // 이번 세션 누적 표시 (설계 §10.3)
+        function updateBulkSessionCount() {
+            const el = document.getElementById('bulk-session-count');
+            if (!el) return;
+
+            const n = bulkState().sessionCount;
+            if (n > 0) {
+                el.textContent = '이번 세션 ' + n + '개 등록';
+                el.style.display = '';
+            } else {
+                el.textContent = '';
+                el.style.display = 'none';
+            }
+        }
+
+        // 등록 중 버튼 잠금
+        function setBulkSubmitting(busy) {
+            const submitBtn = document.getElementById('bulk-submit-btn');
+            if (submitBtn) {
+                submitBtn.disabled = busy;
+                if (busy) submitBtn.textContent = '등록 중…';
+            }
+            const cancelBtn = document.getElementById('bulk-cancel-btn');
+            if (cancelBtn) cancelBtn.disabled = busy;
+        }
+
+        // 일괄 등록
+        //
+        // ★ savePrompts 1회 + 스냅샷 전량 롤백 (devlog §4.8).
+        //   부분 성공을 허용하지 않는다 — 어댑터가 컬렉션을 통째로 쓰므로 애초에
+        //   부분 저장이 불가능하고, "20개 중 13개만 들어갔다"는 상태는 수습할 수 없다.
+        // ★ 즐겨찾기는 바뀌지 않으므로 saveFavorites 는 부르지 않는다.
+        // ★ 성공 토스트는 저장이 성공한 뒤에만 띄운다.
+        async function submitBulkPrompts() {
+            const state = bulkState();
+
+            // 중복 클릭 방지 — 버튼 비활성화와 별개로 상태로도 막는다
+            if (state.saving) return;
+
+            const rows = state.rows.filter(function (row) { return row.checked; });
+            if (rows.length === 0) {
+                showToast('등록할 조각을 선택해 주세요');
+                return;
+            }
+
+            // 본문을 비운 채 체크된 행은 조용히 버리지 않고 알린다
+            const empties = rows.filter(function (row) { return String(row.body).trim().length === 0; });
+            if (empties.length > 0) {
+                showToast('본문이 빈 조각이 ' + empties.length + '개 있습니다 — 내용을 채우거나 선택을 해제해 주세요 ❌');
+                return;
+            }
+
+            const categoryName = selectedBulkCategoryName();
+            const snapshotPrompts = [...allPrompts];
+            const createdAt = new Date().toISOString();
+
+            state.saving = true;
+            setBulkSubmitting(true);
+
+            try {
+                // ★ 역순으로 unshift 해야 붙여넣은 순서가 목록 위에서부터 유지된다.
+                //   순서대로 unshift 하면 뒤집힌다.
+                //   createdAt 을 배치 전체가 공유하므로 최신순 정렬이 배열 순서를 지켜준다.
+                for (let i = rows.length - 1; i >= 0; i--) {
+                    allPrompts.unshift(buildBulkPrompt(rows[i], categoryName, createdAt));
+                }
+
+                if (await PromptStorage.savePrompts(allPrompts) !== true) {
+                    allPrompts = snapshotPrompts;
+                    applyFilters();
+                    showToast('저장 실패 — 등록을 되돌렸습니다 ❌');
+                    return;
+                }
+
+                // --- 여기서부터 성공 경로 ---
+                state.sessionCount += rows.length;
+
+                applyFilters();          // 목록 + 사이드바 카운트 갱신
+                resetBulkInputAfterSubmit();
+                updateBulkSessionCount();
+
+                showToast(rows.length + '개 등록 완료! ✅');
+                console.log('[일괄 등록] ' + rows.length + '개 추가 (카테고리: ' + categoryName + ')');
+            } catch (error) {
+                // 어댑터가 거부를 false 로 정규화하지만(T-011b), 그 바깥에서 터질 수도 있다.
+                allPrompts = snapshotPrompts;
+                applyFilters();
+                console.error('[일괄 등록] 실패:', error);
+                showToast('등록 중 오류가 발생했습니다 — 되돌렸습니다 ❌');
+            } finally {
+                state.saving = false;
+                setBulkSubmitting(false);
+                updateBulkSelectionSummary();
+            }
+        }
+
+        // 등록 후 정리 (설계 §10.3)
+        //
+        // ★ 모달은 열어 둔다. 소스가 3종이라 이어서 넣을 가능성이 높다.
+        // ★ textarea 와 미리보기만 비운다. 구분자 선택·직접 입력·카테고리는 남긴다.
+        // ★ sourceText 도 함께 비워야 T-104c 의 편집 확인이 뜨지 않는다 —
+        //   비운 textarea 와 남은 rows 가 어긋나면 다음 입력에서 엉뚱한 확인이 뜬다.
+        function resetBulkInputAfterSubmit() {
+            const state = bulkState();
+
+            const textEl = document.getElementById('bulk-text');
+            if (textEl) textEl.value = '';
+
+            state.rows = [];
+            state.sourceText = '';
+
+            const list = document.getElementById('bulk-preview-list');
+            if (list) list.innerHTML = '';
+
+            refreshBulkCounts();
+            updateBulkSelectionSummary();
+
+            if (textEl) textEl.focus();
         }

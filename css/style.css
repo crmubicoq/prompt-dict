@@ -523,6 +523,28 @@
             font-size: 12px;
         }
 
+        .bulk-session-count {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent-primary);
+        }
+
+        .bulk-category-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin: 0;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .bulk-category-select {
+            width: auto;
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+
         /* --- 미리보기 행 --- */
         .bulk-row {
             padding: 10px 12px;

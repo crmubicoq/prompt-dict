@@ -231,9 +231,14 @@
                 <!-- 툴바 -->
                 <div class="bulk-toolbar">
                     <span id="bulk-summary" class="bulk-summary">붙여넣은 텍스트가 없습니다</span>
+                    <span id="bulk-session-count" class="bulk-session-count" style="display: none;"></span>
                     <div class="bulk-toolbar-actions">
                         <button type="button" id="bulk-select-all" class="btn-cancel bulk-mini-btn">전체 선택</button>
                         <button type="button" id="bulk-select-none" class="btn-cancel bulk-mini-btn">전체 해제</button>
+                        <label class="bulk-category-label">
+                            카테고리
+                            <select id="bulk-category" class="bulk-category-select"></select>
+                        </label>
                     <button type="button" id="ai-organize-btn" class="btn-cancel" disabled
                             title="P4에서 연결됩니다. 제목·카테고리·태그를 자동으로 제안합니다. 본문은 수정하지 않습니다.">
                         ✨ AI 자동정리 (P4)
