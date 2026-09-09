@@ -196,13 +196,11 @@
                 console.error('[PromptStorage] 원본 ' + raw.length + '자를 PromptStorage.rawBackup 에 보관했습니다. 키: ' + key);
                 console.error('[PromptStorage] 이 키의 저장이 차단됩니다. 원본을 확보한 뒤 PromptStorage.removeAll() 로 초기화하세요.');
 
-                alert(
-                    '저장된 데이터를 읽지 못했습니다.\n' +
-                    '손상된 키: ' + key + '\n\n' +
-                    '이 항목을 덮어쓰지 않기 위해 해당 키의 저장만 잠급니다.\n' +
-                    '다른 항목은 정상적으로 저장됩니다.\n' +
-                    '원본은 개발자 도구 콘솔의 PromptStorage.rawBackup 에서 확인할 수 있습니다.'
-                );
+                // T-115: alert 대신 복구 배너. alert 은 확인만 누르면 사라지고
+                //   원인도 복구 경로도 남지 않는다. 초기화 도중 여러 번 뜨기도 한다.
+                if (typeof showRecoveryBanner === 'function') {
+                    showRecoveryBanner();
+                }
             },
 
             // --- 쓰기 가드: 그 키의 읽기에 실패했을 때만 막는다 ---
@@ -219,6 +217,13 @@
                 setTimeout(function () {
                     if (typeof showToast === 'function') showToast(message);
                 }, 0);
+
+                // T-115: 배너를 닫았더라도 실제로 막히는 순간에는 다시 띄운다.
+                //   토스트는 3초 뒤 사라지고 아무 동작도 제공하지 않는다 —
+                //   지금이 복구 경로가 한 번의 클릭 거리에 있어야 할 시점이다.
+                if (typeof showRecoveryBanner === 'function') {
+                    showRecoveryBanner();
+                }
 
                 return true;
             },

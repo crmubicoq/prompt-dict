@@ -221,3 +221,194 @@
                 console.log('테마 변경:', isDark ? '다크모드' : '라이트모드');
             });
         }
+
+        // ========================================
+        // T-115: 손상 복구 배너
+        // ========================================
+        //
+        // ★ 정상 렌더 경로에 의존하지 않는다.
+        //   프롬프트·즐겨찾기·카테고리 중 하나라도 깨지면 initializeData 가 throw 하고
+        //   main.js 리스너1이 렌더링을 중단한다 — 화면이 통째로 비는 상황에서
+        //   조작할 수 있는 것이 이 배너뿐이어야 한다.
+        //   그래서 index.html 에 미리 있는 정적 마크업을 보이기만 한다.
+        //
+        // ★ 이 함수는 예외를 던지지 않는다. 복구 UI 가 깨지면 복구가 불가능해진다.
+
+        // 내부 키 → 사람이 읽는 이름
+        //
+        // ★ 둘 다 보여준다. 이름만 보여주면 무엇을 잃었는지는 알지만
+        //   내려받은 파일명·콘솔 로그와 이어지지 않는다.
+        //   키만 보여주면 심각도를 가늠할 수 없다.
+        function storageKeyLabel(key) {
+            if (key === STORAGE_KEY) return '프롬프트 목록';
+            if (key === FAVORITES_KEY) return '즐겨찾기';
+            if (key === CATEGORIES_KEY) return '카테고리';
+            if (key === SEARCH_HISTORY_KEY) return '검색 기록';
+            if (key === THEME_KEY) return '테마 설정';
+            return key;
+        }
+
+        // 손상된 원본 내려받기 (rawBackup)
+        //
+        // ★ exportData() 를 쓰지 않는다. 초기화가 중단된 상태에서는 allPrompts 가
+        //   비어 있어 **빈 백업**이 나오고, 사용자는 백업했다고 믿게 된다.
+        //   그것이 가장 위험한 결과다.
+        //   rawBackup 은 파싱이 필요 없는 원본 문자열이라 손상 상태에서도 항상 된다.
+        function downloadRawBackups() {
+            try {
+                const raw = (typeof PromptStorage !== 'undefined' && PromptStorage.rawBackup) || {};
+                const keys = Object.keys(raw);
+
+                if (keys.length === 0) {
+                    showToast('내려받을 손상 원본이 없습니다');
+                    return;
+                }
+
+                const today = new Date().toISOString().split('T')[0];
+                keys.forEach(function (key) {
+                    const blob = new Blob([raw[key]], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    // 파일명에는 내부 키를 쓴다 — 콘솔 로그·배너와 같은 이름이라야 추적된다
+                    a.download = 'prompt-dict-손상원본-' + key + '-' + today + '.txt';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                });
+
+                // ★ 순서 강제용 표시. removeAll() 이 rawBackup 을 비우므로
+                //   내려받기가 반드시 초기화보다 먼저여야 한다.
+                const banner = document.getElementById('recovery-banner');
+                if (banner) banner.dataset.downloaded = '1';
+
+                showToast(keys.length + '개 원본을 내려받았습니다 — 파일을 확인한 뒤 초기화하세요');
+            } catch (error) {
+                console.error('[복구] 원본 내려받기 실패:', error);
+                showToast('원본을 내려받지 못했습니다 ❌ 콘솔의 PromptStorage.rawBackup 을 확인하세요');
+            }
+        }
+
+        // 저장소 전체 초기화 후 새로고침
+        //
+        // ★ removeAll() 은 저장소만 비운다. allPrompts·categories·favoriteIds 는
+        //   메모리에 그대로 남아, 이후 무엇이든 저장하면 지운 데이터가 되살아난다.
+        //   전역을 하나씩 리셋하면 빠뜨린 하나가 그대로 버그가 되므로
+        //   새로고침으로 통째로 초기화한다. 사용자가 확인한 의도적 동작이다.
+        async function resetAllStoredData() {
+            try {
+                const banner = document.getElementById('recovery-banner');
+                const downloaded = !!(banner && banner.dataset.downloaded === '1');
+
+                // ★ 원본을 안 받았으면 한 번 더 막는다. 되돌릴 수 없는 지점이다.
+                if (!downloaded) {
+                    const proceed = confirm(
+                        '⚠️ 손상된 원본을 아직 내려받지 않았습니다.\n\n' +
+                        '초기화하면 원본이 영구히 사라져 복구할 수 없습니다.\n' +
+                        '먼저 "손상된 원본 내려받기"를 누르시길 권합니다.\n\n' +
+                        '그래도 계속하시겠습니까?'
+                    );
+                    if (!proceed) return;
+                }
+
+                const first = confirm(
+                    '⚠️ 저장된 데이터를 전부 삭제합니다.\n\n' +
+                    '프롬프트 · 카테고리 · 즐겨찾기 · 검색 기록 · 테마가 모두 사라집니다.\n\n' +
+                    '계속하시겠습니까?'
+                );
+                if (!first) return;
+
+                const second = confirm(
+                    '🔴 최종 확인\n\n' +
+                    '되돌릴 수 없습니다. 정말 초기화하시겠습니까?'
+                );
+                if (!second) return;
+
+                if (await PromptStorage.removeAll() !== true) {
+                    showToast('초기화에 실패했습니다 ❌ 원본은 그대로입니다');
+                    return;
+                }
+
+                location.reload();
+            } catch (error) {
+                console.error('[복구] 초기화 실패:', error);
+                showToast('초기화 중 오류가 발생했습니다 ❌');
+            }
+        }
+
+        // 배너 표시
+        //
+        // options.fatal — 초기화가 중단된 상황(화면이 비어 있다). 닫기를 숨긴다.
+        function showRecoveryBanner(options) {
+            try {
+                const banner = document.getElementById('recovery-banner');
+                if (!banner) return;
+
+                const fatal = !!(options && options.fatal);
+                const keys = (typeof PromptStorage !== 'undefined' && PromptStorage.failedKeys)
+                    ? Array.from(PromptStorage.failedKeys)
+                    : [];
+
+                if (keys.length === 0 && !fatal) return;
+
+                // ★ 여러 키가 깨져도 배너는 하나다. 목록으로 보여준다.
+                //   배너를 쌓으면 되돌릴 수 없는 [초기화] 버튼이 여러 개 생기는데,
+                //   초기화는 어차피 전체 대상이라 키마다 두는 것 자체가 틀린 그림이다.
+                const listHtml = keys.length > 0
+                    ? '<ul class="recovery-keys">' + keys.map(function (key) {
+                          return '<li><strong>' + escapeHtml(storageKeyLabel(key)) + '</strong> ' +
+                                 '<code>' + escapeHtml(key) + '</code></li>';
+                      }).join('') + '</ul>'
+                    : '';
+
+                const headline = fatal
+                    ? '저장된 데이터를 읽지 못해 화면을 그리지 않았습니다'
+                    : '일부 저장 데이터가 손상되었습니다';
+
+                const detail = fatal
+                    ? '손상된 원본을 덮어쓰지 않기 위한 조치입니다. 아래 순서로 복구하세요.'
+                    : '해당 항목의 저장만 잠갔습니다. 다른 항목은 정상 동작합니다.';
+
+                const body = banner.querySelector('.recovery-body');
+                if (body) {
+                    body.innerHTML =
+                        '<div class="recovery-title">⚠ ' + escapeHtml(headline) + '</div>' +
+                        '<div class="recovery-detail">' + escapeHtml(detail) + '</div>' +
+                        listHtml +
+                        '<div class="recovery-steps">' +
+                            '① 원본을 내려받아 보관 → ② 초기화 → ③ 상단 [불러오기]로 백업 복원' +
+                        '</div>';
+                }
+
+                const closeBtn = banner.querySelector('#recovery-close-btn');
+                if (closeBtn) closeBtn.style.display = fatal ? 'none' : '';
+
+                wireRecoveryBanner(banner);
+                banner.style.display = 'block';
+            } catch (error) {
+                // ★ 여기서 던지면 복구 자체가 막힌다. 콘솔에만 남긴다.
+                console.error('[복구 배너] 표시 실패:', error);
+            }
+        }
+
+        function hideRecoveryBanner() {
+            const banner = document.getElementById('recovery-banner');
+            if (banner) banner.style.display = 'none';
+        }
+
+        // 리스너는 한 번만 건다. 배너를 띄우는 쪽에서 호출하므로
+        // "배선되지 않은 배너"가 나올 수 없다 — 초기화 순서에 의존하지 않는다.
+        function wireRecoveryBanner(banner) {
+            if (!banner || banner.dataset.wired === '1') return;
+            banner.dataset.wired = '1';
+
+            const downloadBtn = banner.querySelector('#recovery-download-btn');
+            if (downloadBtn) downloadBtn.addEventListener('click', downloadRawBackups);
+
+            const resetBtn = banner.querySelector('#recovery-reset-btn');
+            if (resetBtn) {
+                resetBtn.addEventListener('click', function () { resetAllStoredData(); });
+            }
+
+            const closeBtn = banner.querySelector('#recovery-close-btn');
+            if (closeBtn) closeBtn.addEventListener('click', hideRecoveryBanner);
+        }

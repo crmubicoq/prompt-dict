@@ -25,11 +25,10 @@
                 await initializeData();
             } catch (error) {
                 console.error('[초기화 실패] 저장된 데이터를 읽지 못했습니다:', error);
-                alert(
-                    '저장된 데이터를 읽지 못해 초기화를 중단했습니다.\n\n' +
-                    '데이터를 덮어쓰지 않기 위해 화면을 그리지 않습니다.\n' +
-                    '개발자 도구 콘솔에서 PromptStorage.rawBackup 으로 원본을 확인할 수 있습니다.'
-                );
+
+                // T-115: 화면이 비어도 이것만은 조작할 수 있어야 한다.
+                //   배너는 정적 마크업을 보이는 것뿐이라 렌더 경로에 의존하지 않는다.
+                showRecoveryBanner({ fatal: true });
                 return;
             }
 
@@ -90,6 +89,12 @@
 
             // 이미지 썸네일 설정
             setupThumbnailFeature();
+
+            // T-115: 초기화는 됐지만 일부 키가 손상된 경우
+            //   (검색 기록처럼 치명적이지 않은 키는 여기까지 온다)
+            if (PromptStorage.isReadFailed) {
+                showRecoveryBanner({ fatal: false });
+            }
         });
 
         // 상세 모달 닫기 버튼 이벤트
