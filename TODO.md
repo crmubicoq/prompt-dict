@@ -106,7 +106,7 @@ const PromptStorage = {
 - [x] **T-009** 호출부를 `PromptStorage` 경유로 교체
       ※ 계획서상 단일 태스크였으나 Codex 검수 지적을 반영하며 5단계로 나눠 진행
       ※ `initializeData` try/catch 부재도 함께 처리 / 손상 복구 UI는 T-115로 미룸
-      — 근거 [`docs/decisions/2026-09-08-decisions.md`](./docs/decisions/2026-09-08-decisions.md) §6
+      — 근거 [`docs/decisions/2026-09-08.md`](./docs/decisions/2026-09-08.md) §6
   - [x] **T-009a** 어댑터 타입 검증·실패 규약 보강 — `63dd66e`
         `JSON.parse('null')` 이 "키 없음"으로 오인되던 구멍, 직렬화 실패 규약,
         `removeAll` 성공 시에만 가드 해제
