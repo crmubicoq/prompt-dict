@@ -412,15 +412,25 @@
         }
 
         // 카테고리 검증 함수
+        //
+        // ★ T-104f: 폴백이 '기타' 가 아니라 미분류다.
+        //   기타 = 사용자가 골라서 넣은 것. 미분류 = 아직 아무도 고르지 않은 것.
+        //   파일에서 들어온 항목은 아무도 고르지 않았다. '기타'로 보내면
+        //   T-105(일괄 분류) 정리 대상에서 빠져, 150개 이관의 핵심 구분이 무너진다.
+        //
+        //   없는 카테고리 이름(예: 파일에 "마케팅")도 마찬가지다.
+        //   사용자가 고르긴 했지만 이 시스템에 없는 값이라 재분류가 필요하다.
+        //
+        // ※ deleteCategory 의 "소속 프롬프트를 기타로 이동"은 바꾸지 않는다.
+        //   그건 사용자가 이미 분류했던 것이라, 미분류로 되돌리면 정보를 잃는다.
         function validateCategory(category) {
-            if (!category) return '기타';
+            if (!category) return UNCATEGORIZED;
 
             // T-101: 미분류는 categories 배열에 없지만 유효한 값이다.
-            // 이 예외가 없으면 불러오기에서 미분류가 '기타'로 뭉개진다.
             if (category === UNCATEGORIZED) return UNCATEGORIZED;
 
             // 시스템에 존재하는 카테고리인지 확인
             const exists = categories.some(cat => cat.name === category);
 
-            return exists ? category : '기타';
+            return exists ? category : UNCATEGORIZED;
         }

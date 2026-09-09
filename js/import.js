@@ -90,16 +90,19 @@
 
                     // 프롬프트 검증 및 추가
                     let addedCount = 0;
-                    let defaultCategoryCount = 0; // "기타"로 분류된 개수
+                    let uncategorizedCount = 0; // 미분류로 떨어진 개수
                     
                     prompts.forEach(prompt => {
                         if (prompt.title && prompt.content) {
-                            const originalCategory = prompt.category || '기타';
-                            const validatedCategory = validateCategory(originalCategory);
+                            // T-104f: 카테고리가 없으면 미분류. 아무도 고르지 않은 상태다.
+                            const rawCategory = prompt.category;
+                            const validatedCategory = validateCategory(rawCategory);
                             
-                            // 카테고리가 변경되었으면 카운트
-                            if (originalCategory !== '기타' && validatedCategory === '기타') {
-                                defaultCategoryCount++;
+                            // ★ 파일이 미분류라고 명시한 것이 아닌데 미분류로 떨어진 개수.
+                            //   카테고리가 아예 없던 항목도 포함한다 — 그것도 재분류 대상이다.
+                            //   (예전 조건은 값이 없는 항목을 세지 않아 메시지가 실제보다 적었다)
+                            if (validatedCategory === UNCATEGORIZED && rawCategory !== UNCATEGORIZED) {
+                                uncategorizedCount++;
                             }
                             
                             const newPrompt = {
@@ -130,12 +133,12 @@
                         
                         // 메시지 생성
                         let message = `${addedCount}개의 프롬프트 추가 완료! ✅`;
-                        if (defaultCategoryCount > 0) {
-                            message += `\n(${defaultCategoryCount}개가 '기타'로 분류됨)`;
+                        if (uncategorizedCount > 0) {
+                            message += `\n(${uncategorizedCount}개가 '${UNCATEGORIZED}'로 분류됨)`;
                         }
                         
                         showToast(message);
-                        console.log(`${addedCount}개 프롬프트 추가됨 (기타: ${defaultCategoryCount}개)`);
+                        console.log(`${addedCount}개 프롬프트 추가됨 (${UNCATEGORIZED}: ${uncategorizedCount}개)`);
                     } else {
                         alert('유효한 프롬프트를 찾을 수 없습니다.\n제목(title)과 본문(content)이 필요합니다.');
                     }
@@ -167,19 +170,20 @@
                     const headers = lines[0].split(',').map(h => h.trim());
                     
                     let addedCount = 0;
-                    let defaultCategoryCount = 0; // "기타"로 분류된 개수
+                    let uncategorizedCount = 0; // 미분류로 떨어진 개수
                     
                     // 데이터 행 처리
                     for (let i = 1; i < lines.length; i++) {
                         const values = lines[i].split(',').map(v => v.trim());
                         
                         if (values.length >= 2) {
-                            const originalCategory = values[2] || '기타';
-                            const validatedCategory = validateCategory(originalCategory);
+                            // T-104f: 카테고리가 없으면 미분류. 아무도 고르지 않은 상태다.
+                            const rawCategory = values[2];
+                            const validatedCategory = validateCategory(rawCategory);
                             
-                            // 카테고리가 변경되었으면 카운트
-                            if (originalCategory !== '기타' && validatedCategory === '기타') {
-                                defaultCategoryCount++;
+                            // ★ 파일이 미분류라고 명시한 것이 아닌데 미분류로 떨어진 개수.
+                            if (validatedCategory === UNCATEGORIZED && rawCategory !== UNCATEGORIZED) {
+                                uncategorizedCount++;
                             }
                             
                             const newPrompt = {
@@ -213,12 +217,12 @@
                         
                         // 메시지 생성
                         let message = `${addedCount}개의 프롬프트 추가 완료! ✅`;
-                        if (defaultCategoryCount > 0) {
-                            message += `\n(${defaultCategoryCount}개가 '기타'로 분류됨)`;
+                        if (uncategorizedCount > 0) {
+                            message += `\n(${uncategorizedCount}개가 '${UNCATEGORIZED}'로 분류됨)`;
                         }
                         
                         showToast(message);
-                        console.log(`${addedCount}개 프롬프트 추가됨 (CSV, 기타: ${defaultCategoryCount}개)`);
+                        console.log(`${addedCount}개 프롬프트 추가됨 (CSV, ${UNCATEGORIZED}: ${uncategorizedCount}개)`);
                     } else {
                         alert('유효한 프롬프트를 찾을 수 없습니다.');
                     }
@@ -252,7 +256,8 @@
                                 id: newId(),
                                 title: lines[0].trim() || `프롬프트 ${index + 1}`,
                                 content: lines.slice(1).join('\n').trim() || lines[0],
-                                category: '기타',
+                                // T-104f: TXT 는 카테고리 정보가 없다 — 아무도 고르지 않았다
+                                category: UNCATEGORIZED,
                                 tags: [],
                                 description: '',
                                 createdAt: new Date().toISOString(),
