@@ -152,20 +152,6 @@
             }
         }
 
-        // 툴바 요약 (T-104c 에서 "N개 중 M개 선택" 으로 확장된다)
-        function updateBulkSummary(text, delimiter, count) {
-            const el = document.getElementById('bulk-summary');
-            if (!el) return;
-
-            if (String(text).trim().length === 0) {
-                el.textContent = '붙여넣은 텍스트가 없습니다';
-            } else if (count === null) {
-                el.textContent = '직접 입력 구분자를 입력해 주세요';
-            } else {
-                el.textContent = '조각 ' + count + '개';
-            }
-        }
-
         // 모든 구분자의 개수를 다시 계산해 화면에 반영한다.
         function refreshBulkCounts() {
             const textEl = document.getElementById('bulk-text');
@@ -190,9 +176,7 @@
                 option.classList.toggle('selected', !!radio && radio.value === selected);
             });
 
-            const selectedCount = counts[selected];
-            updateBulkSummary(text, selected, selectedCount);
-            updateBulkWarning(selectedCount);
+            updateBulkWarning(counts[selected]);
         }
 
         function openBulkModal() {
@@ -202,7 +186,7 @@
             overlay.style.display = 'flex';
             document.body.style.overflow = 'hidden';
 
-            refreshBulkCounts();
+            refreshBulkSource();
 
             const textEl = document.getElementById('bulk-text');
             if (textEl) textEl.focus();
@@ -232,8 +216,14 @@
             const list = document.getElementById('bulk-preview-list');
             if (list) list.innerHTML = '';
 
+            // 행 상태도 버린다 — 다음에 열 때 남은 편집이 되살아나면 안 된다
+            const state = bulkState();
+            state.rows = [];
+            state.sourceText = '';
+
             // 구분자 선택과 직접 입력 값은 남긴다 — 같은 소스를 이어 넣을 때 유용하다 (설계 §10.3)
             refreshBulkCounts();
+            updateBulkSelectionSummary();
         }
 
         // 초기화. main.js 에서 한 번 호출한다.
@@ -259,16 +249,32 @@
             // ★ 개수 계산을 한 틱 미뤄 합친다.
             //   같은 입력에 input 과 change 가 함께 오는 경우가 있어 두 번 도는 것을 막는다.
             //   (1000개·811KB 에 2ms 라 성능 자체는 여유가 있다)
-            let pending = 0;
+            // ★ 개수는 즉시, 미리보기 행은 입력이 멎은 뒤에 그린다.
+            //   개수 계산은 1ms 수준이지만 150행 렌더는 ~190ms 다(실측).
+            //   입력마다 다시 그리면 타이핑이 눈에 띄게 끊긴다.
+            //   숫자는 바로 보여줘야 구분자를 고르는 판단이 끊기지 않으므로 둘을 분리한다.
+            let pendingPreview = 0;
             function scheduleRefresh() {
-                if (pending) return;
-                pending = setTimeout(function () {
-                    pending = 0;
-                    refreshBulkCounts();
-                }, 0);
+                refreshBulkCounts();
+
+                if (pendingPreview) clearTimeout(pendingPreview);
+                pendingPreview = setTimeout(function () {
+                    pendingPreview = 0;
+                    refreshBulkSource();
+                }, 180);
+            }
+
+            // ★ 미리보기 행에서 올라온 이벤트는 여기서 처리하지 않는다.
+            //   제목을 한 글자 고칠 때마다 재분할이 돌면 편집이 그 자리에서 날아간다.
+            //   행 이벤트는 setupBulkPreviewDelegation 이 따로 받는다.
+            function isPreviewEvent(target) {
+                return !!(target && typeof target.closest === 'function' &&
+                          target.closest('#bulk-preview-list'));
             }
 
             modal.addEventListener('input', function (event) {
+                if (isPreviewEvent(event.target)) return;
+
                 // 직접 입력 칸에 쓰면 그 라디오를 자동으로 고른다 —
                 // 입력했는데 아무 일도 일어나지 않는 상태를 만들지 않는다.
                 if (event.target && event.target.id === 'bulk-custom-delimiter') {
@@ -278,5 +284,382 @@
                 scheduleRefresh();
             });
 
-            modal.addEventListener('change', scheduleRefresh);
+            modal.addEventListener('change', function (event) {
+                if (isPreviewEvent(event.target)) return;
+                scheduleRefresh();
+            });
+
+            // 전체 선택 / 전체 해제
+            const selectAllBtn = document.getElementById('bulk-select-all');
+            if (selectAllBtn) selectAllBtn.addEventListener('click', function () { setAllBulkChecked(true); });
+
+            const selectNoneBtn = document.getElementById('bulk-select-none');
+            if (selectNoneBtn) selectNoneBtn.addEventListener('click', function () { setAllBulkChecked(false); });
+
+            setupBulkPreviewDelegation();
+        }
+
+        // ========================================
+        // T-104c+d: 미리보기 행 · 경고 배지
+        // ========================================
+        //
+        // ★ 인라인 onclick 없이 #bulk-preview-list 위임 하나로 처리한다 (T-113).
+        // ★ 붙여넣기 텍스트는 정확히 "외부에서 들어온 문자열"이다. escapeHtml 필수.
+
+        // 미리보기 상태.
+        //
+        // ★ 최상위 실행문을 만들지 않으려고 지연 초기화한다 (devlog §1.3).
+        //   config.js 에 두지 않은 이유: 이 상태는 모달이 열려 있는 동안만 의미가 있고
+        //   앱 전역 상태가 아니다.
+        function bulkState() {
+            if (!window.__bulkState) {
+                window.__bulkState = {
+                    rows: [],        // { chunk, title, body, checked, expanded, warnings }
+                    sourceText: '',  // 마지막으로 렌더한 원본
+                    delimiter: 'blank2',
+                    custom: ''
+                };
+            }
+            return window.__bulkState;
+        }
+
+        // 중복 비교용 정규화 (설계 §4) — 공백 차이만 무시하고 완전 일치만 본다.
+        // 유사도는 쓰지 않는다. 오탐 비용이 크고 클라이언트 연산 제약에도 맞지 않는다.
+        function normalizeForCompare(text) {
+            return String(text).replace(/\s+/g, ' ').trim();
+        }
+
+        // 조각 하나의 경고를 판정한다.
+        //
+        // 배지와 기본 체크 상태 (설계 §3 + T-104d 판단)
+        //
+        //   ⚠ 짧음        20자 미만        기본 해제
+        //     구분자를 잘못 고르면 짧은 조각이 대량으로 생긴다. 기본 해제면
+        //     실수했을 때 쓰레기가 아니라 아무것도 등록되지 않는다.
+        //
+        //   ⚠ 김          5,000자 초과     기본 유지
+        //     쪼개기 실패 신호일 수 있지만 정당하게 긴 프롬프트일 수도 있다.
+        //     해제하면 사용자가 넣으려던 실제 내용이 조용히 빠진다.
+        //     대량으로 생기지도 않으므로 배지만으로 충분하다.
+        //
+        //   ⚠ 기존과 중복  저장된 프롬프트와 일치   기본 해제
+        //     같은 소스를 두 번 붙여넣는 것이 가장 흔한 원인이다.
+        //     등록해봐야 정리할 일만 늘어난다.
+        //
+        //   ⚠ 조각 중복    앞선 조각과 일치         2번째부터 기본 해제
+        //     ★ 둘 다 해제하면 내용이 통째로 사라진다. 첫 번째는 남긴다.
+        //       한 번만 넣는 것이 사실상 항상 의도다.
+        function detectChunkWarnings(chunk, existingSet, seenSet) {
+            const warnings = [];
+            const normalized = normalizeForCompare(chunk);
+
+            if (chunk.length < 20) warnings.push('short');
+            if (chunk.length > 5000) warnings.push('long');
+            if (existingSet.has(normalized)) warnings.push('dupExisting');
+            if (seenSet.has(normalized)) warnings.push('dupChunk');
+
+            return warnings;
+        }
+
+        // 경고 목록 → 기본 체크 여부
+        function defaultCheckedFor(warnings) {
+            if (warnings.indexOf('short') >= 0) return false;
+            if (warnings.indexOf('dupExisting') >= 0) return false;
+            if (warnings.indexOf('dupChunk') >= 0) return false;
+            // 'long' 은 유지한다
+            return true;
+        }
+
+        function badgeLabel(kind) {
+            if (kind === 'short') return '⚠ 짧음';
+            if (kind === 'long') return '⚠ 김';
+            if (kind === 'dupExisting') return '⚠ 기존과 중복';
+            if (kind === 'dupChunk') return '⚠ 조각 중복';
+            return '⚠';
+        }
+
+        // 조각 배열 → 행 배열
+        function buildBulkRows(chunks) {
+            // 기존 프롬프트 본문 집합 (한 번만 만든다)
+            const existingSet = new Set();
+            if (typeof allPrompts !== 'undefined' && Array.isArray(allPrompts)) {
+                allPrompts.forEach(function (p) {
+                    if (p && typeof p.content === 'string') existingSet.add(normalizeForCompare(p.content));
+                });
+            }
+
+            const seenSet = new Set();
+
+            return chunks.map(function (chunk) {
+                const warnings = detectChunkWarnings(chunk, existingSet, seenSet);
+                seenSet.add(normalizeForCompare(chunk));
+
+                return {
+                    chunk: chunk,
+                    title: suggestTitle(chunk) || '제목 없음',
+                    body: chunk,
+                    checked: defaultCheckedFor(warnings),
+                    expanded: false,
+                    warnings: warnings
+                };
+            });
+        }
+
+        // 접힘 상태에서 보여줄 본문 한 줄
+        function bulkBodyPeek(body) {
+            const lines = String(body).split('\n');
+            let first = '';
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].trim().length > 0) { first = lines[i].trim(); break; }
+            }
+            return first.length > 90 ? first.slice(0, 90) + '…' : first;
+        }
+
+        // 편집된 행이 있는가 (제목이 제안과 다르거나, 본문이 원본과 다르면 편집)
+        function bulkHasEdits() {
+            return bulkState().rows.some(function (row) {
+                return row.title !== (suggestTitle(row.chunk) || '제목 없음') || row.body !== row.chunk;
+            });
+        }
+
+        // 미리보기 목록 렌더
+        //
+        // ★ 150행을 전량 렌더한다. 가상 스크롤은 P2 T-202 몫이다 (설계 §3).
+        //   각 행은 제목 input 하나만 갖는다 — 본문 textarea 는 펼칠 때 만든다.
+        function renderBulkPreview() {
+            const list = document.getElementById('bulk-preview-list');
+            if (!list) return;
+
+            const rows = bulkState().rows;
+
+            if (rows.length === 0) {
+                list.innerHTML = '';
+                return;
+            }
+
+            const html = rows.map(function (row, index) {
+                const badges = row.warnings.map(function (kind) {
+                    return '<span class="bulk-badge bulk-badge-' + kind + '">' +
+                           escapeHtml(badgeLabel(kind)) + '</span>';
+                }).join('');
+
+                return '' +
+                    '<div class="bulk-row' + (row.checked ? '' : ' unchecked') + '" data-idx="' + index + '">' +
+                        '<div class="bulk-row-main">' +
+                            '<input type="checkbox" class="bulk-row-check" data-action="toggle"' +
+                                   (row.checked ? ' checked' : '') + '>' +
+                            '<span class="bulk-row-num">' + (index + 1) + '</span>' +
+                            '<input type="text" class="bulk-row-title" data-action="title" ' +
+                                   'value="' + escapeHtml(row.title) + '">' +
+                            '<span class="bulk-row-len">' + row.body.length + '자</span>' +
+                            badges +
+                            '<button type="button" class="bulk-row-expand" data-action="expand" ' +
+                                    'title="본문 펼치기">' + (row.expanded ? '⌃' : '⌄') + '</button>' +
+                        '</div>' +
+                        '<div class="bulk-row-peek"' + (row.expanded ? ' style="display:none;"' : '') + '>' +
+                            escapeHtml(bulkBodyPeek(row.body)) +
+                        '</div>' +
+                        '<div class="bulk-row-body"' + (row.expanded ? '' : ' style="display:none;"') + '></div>' +
+                    '</div>';
+            }).join('');
+
+            list.innerHTML = html;
+
+            // 펼쳐진 행의 textarea 를 만든다.
+            // ★ DOM 으로 만들고 .value 로 넣는다 — 이스케이프가 필요 없는 경로다.
+            rows.forEach(function (row, index) {
+                if (!row.expanded) return;
+                const holder = list.querySelector('.bulk-row[data-idx="' + index + '"] .bulk-row-body');
+                if (holder) mountBulkBodyEditor(holder, row);
+            });
+        }
+
+        function mountBulkBodyEditor(holder, row) {
+            holder.innerHTML = '';
+            const textarea = document.createElement('textarea');
+            textarea.className = 'bulk-row-textarea';
+            textarea.rows = 6;
+            textarea.setAttribute('data-action', 'body');
+            textarea.value = row.body;   // ★ .value 대입 — 이스케이프 불필요
+            holder.appendChild(textarea);
+        }
+
+        // 상단 요약 · 등록 버튼 라벨
+        function updateBulkSelectionSummary() {
+            const rows = bulkState().rows;
+            const total = rows.length;
+            const selected = rows.filter(function (r) { return r.checked; }).length;
+
+            const summary = document.getElementById('bulk-summary');
+            if (summary) {
+                if (total === 0) {
+                    const textEl = document.getElementById('bulk-text');
+                    const hasText = textEl && textEl.value.trim().length > 0;
+                    const isCustomEmpty = currentBulkDelimiter() === 'custom' &&
+                        !(document.getElementById('bulk-custom-delimiter') || {}).value;
+                    summary.textContent = !hasText
+                        ? '붙여넣은 텍스트가 없습니다'
+                        : (isCustomEmpty ? '직접 입력 구분자를 입력해 주세요' : '조각이 없습니다');
+                } else {
+                    const warned = rows.filter(function (r) { return r.warnings.length > 0; }).length;
+                    summary.textContent = total + '개 중 ' + selected + '개 선택됨' +
+                        (warned > 0 ? ' · ⚠ ' + warned + '개' : '');
+                }
+            }
+
+            // 등록 버튼은 T-104e 에서 연결한다. 지금은 라벨만 맞춰 둔다.
+            const submitBtn = document.getElementById('bulk-submit-btn');
+            if (submitBtn) submitBtn.textContent = selected > 0 ? selected + '개 등록' : '등록';
+        }
+
+        // 원본(텍스트·구분자)이 바뀌었을 때 미리보기를 다시 만든다.
+        //
+        // ★ 재분할하면 편집한 제목·본문은 살아남을 수 없다.
+        //   구분자가 바뀌면 조각의 경계 자체가 달라져 "같은 조각"이라는 것이 성립하지 않는다.
+        //   그래서 보존을 시도하지 않는다. 대신 조용히 버리지 않는다 — 먼저 묻는다.
+        //   거부하면 호출부가 원래 값으로 되돌린다.
+        //
+        // 반환: 다시 만들었으면 true, 사용자가 거부했으면 false
+        function rebuildBulkPreview() {
+            const textEl = document.getElementById('bulk-text');
+            if (!textEl) return true;
+
+            const customEl = document.getElementById('bulk-custom-delimiter');
+            const text = textEl.value;
+            const delimiter = currentBulkDelimiter();
+            const custom = customEl ? customEl.value : '';
+
+            const state = bulkState();
+
+            // 원본이 그대로면 다시 만들지 않는다 (편집이 날아가지 않게)
+            if (state.sourceText === text && state.delimiter === delimiter && state.custom === custom) {
+                return true;
+            }
+
+            if (state.rows.length > 0 && bulkHasEdits()) {
+                const ok = confirm(
+                    '⚠️ 수정한 제목이나 본문이 있습니다.\n' +
+                    '조각을 다시 나누면 수정한 내용이 사라집니다.\n\n' +
+                    '계속하시겠습니까?'
+                );
+                if (!ok) return false;
+            }
+
+            state.rows = buildBulkRows(splitChunks(text, delimiter, custom));
+            state.sourceText = text;
+            state.delimiter = delimiter;
+            state.custom = custom;
+
+            renderBulkPreview();
+            return true;
+        }
+
+        // 전체 선택 / 전체 해제
+        function setAllBulkChecked(checked) {
+            bulkState().rows.forEach(function (row) { row.checked = checked; });
+            renderBulkPreview();
+            updateBulkSelectionSummary();
+        }
+
+        // 미리보기 목록 이벤트 위임
+        function setupBulkPreviewDelegation() {
+            const list = document.getElementById('bulk-preview-list');
+            if (!list) return;
+
+            function rowOf(target) {
+                const el = target.closest ? target.closest('.bulk-row') : null;
+                if (!el) return null;
+                const index = parseInt(el.dataset.idx, 10);
+                const row = bulkState().rows[index];
+                return row ? { index: index, el: el, row: row } : null;
+            }
+
+            list.addEventListener('change', function (event) {
+                const target = event.target;
+                if (!target || typeof target.closest !== 'function') return;
+                if (target.dataset.action !== 'toggle') return;
+
+                const found = rowOf(target);
+                if (!found) return;
+
+                found.row.checked = target.checked;
+                found.el.classList.toggle('unchecked', !target.checked);
+                updateBulkSelectionSummary();
+            });
+
+            list.addEventListener('input', function (event) {
+                const target = event.target;
+                if (!target || typeof target.closest !== 'function') return;
+
+                const found = rowOf(target);
+                if (!found) return;
+
+                if (target.dataset.action === 'title') {
+                    found.row.title = target.value;
+                } else if (target.dataset.action === 'body') {
+                    found.row.body = target.value;
+                    // 글자수는 즉시 반영한다 (전체 재렌더 없이 — 포커스가 날아가면 편집이 끊긴다)
+                    const lenEl = found.el.querySelector('.bulk-row-len');
+                    if (lenEl) lenEl.textContent = target.value.length + '자';
+                }
+            });
+
+            list.addEventListener('click', function (event) {
+                const target = event.target;
+                if (!target || typeof target.closest !== 'function') return;
+
+                const btn = target.closest('[data-action="expand"]');
+                if (!btn) return;
+
+                const found = rowOf(btn);
+                if (!found) return;
+
+                found.row.expanded = !found.row.expanded;
+
+                const bodyEl = found.el.querySelector('.bulk-row-body');
+                const peekEl = found.el.querySelector('.bulk-row-peek');
+                if (!bodyEl || !peekEl) return;
+
+                if (found.row.expanded) {
+                    // ★ 펼칠 때 만든다. 150행 분량의 textarea 를 미리 만들지 않는다.
+                    mountBulkBodyEditor(bodyEl, found.row);
+                    bodyEl.style.display = '';
+                    peekEl.style.display = 'none';
+                    btn.textContent = '⌃';
+                    const ta = bodyEl.querySelector('textarea');
+                    if (ta) ta.focus();
+                } else {
+                    bodyEl.innerHTML = '';
+                    bodyEl.style.display = 'none';
+                    peekEl.textContent = bulkBodyPeek(found.row.body);
+                    peekEl.style.display = '';
+                    btn.textContent = '⌄';
+                }
+            });
+        }
+
+        // 원본이 바뀌었을 때의 진입점 — 미리보기·개수·요약을 한 번에 맞춘다.
+        //
+        // ★ 사용자가 재분할을 거부하면 입력값을 마지막으로 렌더한 상태로 되돌린다.
+        //   그래야 화면(옛 미리보기)과 입력칸(새 값)이 어긋나지 않는다.
+        function refreshBulkSource() {
+            if (!rebuildBulkPreview()) {
+                revertBulkSourceInputs();
+            }
+            refreshBulkCounts();
+            updateBulkSelectionSummary();
+        }
+
+        function revertBulkSourceInputs() {
+            const state = bulkState();
+
+            const textEl = document.getElementById('bulk-text');
+            if (textEl) textEl.value = state.sourceText;
+
+            const customEl = document.getElementById('bulk-custom-delimiter');
+            if (customEl) customEl.value = state.custom;
+
+            const radio = document.querySelector(
+                'input[name="bulk-delimiter"][value="' + state.delimiter + '"]');
+            if (radio) radio.checked = true;
         }
