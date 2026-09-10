@@ -43,7 +43,12 @@
             setupEventDelegation();
 
             // Phase 5: 초기 목록 렌더링 (Task 5.5 ~ 5.8)
-            renderPromptList(allPrompts);
+            //
+            // ★ T-126: renderPromptList 직접 호출이 아니라 applyFilters 다.
+            //   지금은 초기값이 all/newest 라 결과가 우연히 같지만,
+            //   그 우연에 기대면 정렬 기본값을 바꾸는 날 첫 화면만
+            //   조용히 어긋난다. 진입점을 하나로 둔다.
+            applyFilters();
 
             // Phase 6~8: 검색 및 필터 이벤트 리스너 등록
             setupSearchAndFilters();

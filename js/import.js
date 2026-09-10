@@ -66,6 +66,26 @@
             }
         }
 
+        // ========================================
+        // T-126: 목록 갱신은 반드시 applyFilters 를 거친다
+        // ========================================
+        //
+        // ★ renderPromptList(allPrompts) 를 직접 부르면 세 가지가 통째로 빠진다.
+        //   1) sortPrompts — 사용자가 고른 정렬이 임포트 때마다 조용히 무시됐다
+        //   2) 카테고리·검색 필터 — 격자에는 전체가 뜨는데 사이드바는
+        //      고른 카테고리가 눌린 채였다. 화면이 스스로 모순됐다
+        //   3) syncSelectionWithView(T-105) — 선택 모드에서 화면 밖 항목의
+        //      선택이 남아, 이어지는 일괄 분류·삭제에 휩쓸릴 수 있었다
+        //
+        //   T-117 이 prompts.js 안의 세 곳만 고치고 이 파일을 놓쳤다.
+        //   정당한 renderPromptList 직접 호출은 applyFilters 자신 한 곳뿐이다.
+        //
+        // ★ 성공 뒤에도 필터를 풀지 않는다 — storage.js 의 importData 와 다르다.
+        //   저기는 "이 백업 상태로 되돌린다"라 전체 상태를 갈아끼우지만,
+        //   여기는 기존 사전에 더하는 병합이다. 사용자가 보던 화면을
+        //   파일 하나가 옮기지 않는다. 새로 들어온 항목은 미분류에 쌓이고
+        //   토스트가 그 개수를 알린다.
+
         // JSON 파일 파싱
         function parseJSONFile(file) {
             const reader = new FileReader();
@@ -138,12 +158,12 @@
                         // T-009c-3: 즐겨찾기는 바뀌지 않으므로 프롬프트만 저장
                         if (await PromptStorage.savePrompts(allPrompts) !== true) {
                             allPrompts = snapshotPrompts;
-                            renderPromptList(allPrompts);
+                            applyFilters();
                             showToast('저장 실패 — 불러오기를 되돌렸습니다 ❌');
                             return;
                         }
 
-                        renderPromptList(allPrompts);
+                        applyFilters();
                         
                         // 메시지 생성
                         let message = `${addedCount}개의 프롬프트 추가 완료! ✅`;
@@ -223,12 +243,12 @@
                         // T-009c-3: 즐겨찾기는 바뀌지 않으므로 프롬프트만 저장
                         if (await PromptStorage.savePrompts(allPrompts) !== true) {
                             allPrompts = snapshotPrompts;
-                            renderPromptList(allPrompts);
+                            applyFilters();
                             showToast('저장 실패 — 불러오기를 되돌렸습니다 ❌');
                             return;
                         }
 
-                        renderPromptList(allPrompts);
+                        applyFilters();
                         
                         // 메시지 생성
                         let message = `${addedCount}개의 프롬프트 추가 완료! ✅`;
@@ -321,12 +341,12 @@
                         // T-009c-3: 즐겨찾기는 바뀌지 않으므로 프롬프트만 저장
                         if (await PromptStorage.savePrompts(allPrompts) !== true) {
                             allPrompts = snapshotPrompts;
-                            renderPromptList(allPrompts);
+                            applyFilters();
                             showToast('저장 실패 — 불러오기를 되돌렸습니다 ❌');
                             return;
                         }
 
-                        renderPromptList(allPrompts);
+                        applyFilters();
                         let txtMessage = `${addedCount}개의 프롬프트 추가 완료! ✅`;
                         if (!hasMarker) {
                             txtMessage += `\n구분자 ${TXT_MARKER} 를 찾지 못해 전체를 1개로 넣었습니다.` +
