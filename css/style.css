@@ -142,7 +142,31 @@
             position: sticky;
             top: 65px;
             height: calc(100vh - 65px);
+            /* T-209: 사이드바 전체가 아니라 목록만 스크롤한다 */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* T-209: 카테고리 목록 + 즐겨찾기 — 여기만 스크롤 */
+        #sidebar-scroll {
+            flex: 1 1 auto;
             overflow-y: auto;
+            /* ★ flex 자식의 기본 min-height 는 auto 라, 이게 없으면
+               내용이 길어질 때 줄어들지 않고 아래 고정 영역을 밀어낸다 */
+            min-height: 0;
+        }
+
+        /* T-209: 카테고리 관리 · 파일 업로드 — 항상 보인다 */
+        #sidebar-fixed {
+            flex: 0 0 auto;
+        }
+
+        .sidebar-divider {
+            margin: 20px 0;
+            border: none;
+            /* 기존 하드코딩 #e0e0e0 은 다크모드에서 밝은 선으로 남았다 */
+            border-top: 1px solid var(--border-color);
         }
 
         #sidebar h3 {
@@ -210,6 +234,21 @@
             display: flex;
             gap: 12px;
             align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* T-208: 검색 줄에 놓이는 목록 조작 버튼 */
+        .toolbar-btn {
+            flex: 0 0 auto;
+            min-width: 120px;
+            padding: 14px 18px;
+            background-color: #6c757d;
+            white-space: nowrap;
+        }
+
+        /* 선택 모드가 켜져 있음을 버튼 자체로도 알린다 */
+        .toolbar-btn.active {
+            background-color: var(--accent-primary);
         }
 
         #search-input {
@@ -1226,6 +1265,36 @@
         @media (max-width: 768px) {
             #sidebar {
                 display: none;
+            }
+
+            /* T-208: 검색창은 한 줄을 다 쓰고, 정렬과 선택 모드가 다음 줄로 */
+            #search-input {
+                flex: 1 1 100%;
+            }
+
+            #sort-select {
+                flex: 1 1 auto;
+            }
+
+            .toolbar-btn {
+                flex: 0 0 auto;
+                min-width: 110px;
+                padding: 12px 14px;
+                font-size: 14px;
+            }
+
+            /* ★ 좁아져도 [선택 삭제] 는 분류 버튼과 붙지 않아야 한다 (T-105 설계).
+               두 그룹을 각자 한 줄씩 차지하게 하고, 위험 그룹은 오른쪽 끝으로 민다. */
+            #bulk-actions-bar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+
+            #bulk-actions-bar > div:last-child {
+                justify-content: flex-end;
+                border-top: 1px solid var(--border-color);
+                padding-top: 12px;
             }
 
             #header {

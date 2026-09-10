@@ -48,6 +48,12 @@
         <!-- 1.5: 사이드바 영역 (카테고리 목록) -->
         <aside id="sidebar">
             <h3>📂 카테고리</h3>
+
+            <!-- T-209: 카테고리 목록만 스크롤한다. 카테고리가 늘어나도
+                 아래 고정 영역이 밀리지 않는다.
+                 ★ 즐겨찾기는 여기 남긴다 — 카테고리와 같은 "필터"다.
+                   아래 고정 영역은 "동작"(관리 모달·업로드)만 둔다. -->
+            <div id="sidebar-scroll">
             <ul id="category-list">
                 <li><button class="category-btn active" data-category="all">전체</button></li>
                 <li><button class="category-btn" data-category="개발">💻 개발</button></li>
@@ -57,12 +63,15 @@
                 <li><button class="category-btn" data-category="기타">📌 기타</button></li>
             </ul>
             
-            <hr style="margin: 20px 0; border: none; border-top: 1px solid #e0e0e0;">
-            
+            <hr class="sidebar-divider">
+
             <button class="category-btn" id="favorites-btn">⭐ 즐겨찾기</button>
-            
-            <hr style="margin: 20px 0; border: none; border-top: 1px solid #e0e0e0;">
-            
+            </div><!-- /sidebar-scroll -->
+
+            <!-- T-209: 고정 영역 -->
+            <div id="sidebar-fixed">
+            <hr class="sidebar-divider">
+
             <button class="category-btn" id="manage-categories-btn" style="background-color: var(--bg-hover); border: 1px solid var(--border-color);">⚙️ 카테고리 관리</button>
             
             <!-- 파일 업로드 영역 -->
@@ -72,6 +81,7 @@
                 <small>드래그 또는 클릭</small>
                 <input type="file" id="upload-file-input" accept=".json,.csv,.txt" style="display: none;">
             </div>
+            </div><!-- /sidebar-fixed -->
         </aside>
 
         <!-- 1.6: 메인 콘텐츠 영역 -->
@@ -91,6 +101,10 @@
                     <option value="name-desc">이름순 (하바파)</option>
                     <option value="category">카테고리순</option>
                 </select>
+                <!-- T-208: 목록을 조작하는 기능이므로 목록 위에 둔다.
+                     카드 그리드 아래에 있으면 33장을 지나쳐야 닿았다.
+                     ★ id 는 그대로 — T-113 위임과 T-105 핸들러가 이 id 를 쓴다. -->
+                <button id="toggle-selection-mode-btn" class="toolbar-btn">✓ 선택 모드</button>
             </div>
 
             <!-- 최근 검색어 -->
@@ -126,7 +140,6 @@
             <div style="display: flex; gap: 12px;">
                 <button id="add-prompt-btn" style="flex: 1;">+ 새 프롬프트 추가</button>
                 <button id="bulk-paste-btn" style="flex: 0 0 auto; min-width: 150px; background-color: #6f42c1;">📋 여러 개 붙여넣기</button>
-                <button id="toggle-selection-mode-btn" style="flex: 0 0 auto; min-width: 120px; background-color: #6c757d;">✓ 선택 모드</button>
             </div>
 
         </main>

@@ -28,7 +28,14 @@
 
         // 카테고리 버튼 이벤트 등록
         function setupCategoryButtons() {
-            const categoryBtns = document.querySelectorAll('.category-btn');
+            // ★ #category-list 안으로 한정한다.
+            //   전역으로 잡으면 목록 밖의 #favorites-btn·#manage-categories-btn 까지
+            //   걸리는데, 그 둘은 재렌더돼도 사라지지 않으므로
+            //   renderCategoryList 를 부를 때마다 **리스너가 하나씩 쌓인다.**
+            //   (실측: 5회 재렌더 후 1클릭에 applyFilters 7회 호출)
+            //   게다가 카테고리 관리 버튼은 data-category 가 없어
+            //   currentFilter 를 'all' 로 되돌려, 관리 모달을 열면 필터가 풀렸다.
+            const categoryBtns = document.querySelectorAll('#category-list .category-btn');
             categoryBtns.forEach(btn => {
                 btn.addEventListener('click', function() {
                     // 활성 버튼 스타일 변경

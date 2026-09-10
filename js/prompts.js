@@ -23,7 +23,11 @@
                 // 카테고리 버튼 비활성화
                 const categoryBtns = document.querySelectorAll('.category-btn');
                 categoryBtns.forEach(b => b.classList.remove('active'));
-                
+
+                // T-209: setupCategoryButtons 가 더는 이 버튼을 잡지 않으므로
+                //   active 표시를 여기서 직접 한다.
+                this.classList.add('active');
+
                 currentFilter = 'favorites';
                 applyFilters();
             });

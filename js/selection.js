@@ -14,11 +14,13 @@
                 // 카테고리는 그 사이 바뀌었을 수 있으니 켤 때마다 다시 그린다
                 renderAssignCategoryDropdown();
                 toggleBtn.textContent = '✓ 선택 모드 (켜짐)';
-                toggleBtn.style.backgroundColor = 'var(--accent-primary)';
+                // T-208: 색은 CSS(.toolbar-btn.active)가 가진다.
+                //   인라인으로 쓰면 기본색 #6c757d 가 JS와 CSS 두 곳에 살게 된다.
+                toggleBtn.classList.add('active');
                 bulkActionsBar.style.display = 'flex';
             } else {
                 toggleBtn.textContent = '✓ 선택 모드';
-                toggleBtn.style.backgroundColor = '#6c757d';
+                toggleBtn.classList.remove('active');
                 bulkActionsBar.style.display = 'none';
             }
 
@@ -310,7 +312,7 @@
         // 검색기록 적용이 전부 applyFilters 를 거치므로 진입점마다 손댈 필요가 없고,
         // 저장 후 재렌더처럼 대상이 그대로인 호출에서는 키가 같아 아무 일도 하지 않는다.
         function syncSelectionWithView() {
-            const viewKey = currentFilter + ' ' + currentSearchQuery;
+            const viewKey = currentFilter + '\u0000' + currentSearchQuery;
             if (viewKey === lastViewKey) return;
 
             lastViewKey = viewKey;
