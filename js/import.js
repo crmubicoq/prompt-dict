@@ -260,17 +260,49 @@
                     const text = e.target.result;
                     
                     // --- 구분자로 프롬프트 나누기
-                    const prompts = text.split('---').map(p => p.trim()).filter(p => p);
+                    //
+                    // ★ T-121(B16): 구분자를 '---' 에서 '===PROMPT===' 로 바꿨다.
+                    //   전에는 text.split('---') — 줄 앵커도 없는 단순 부분문자열 분할이라
+                    //   마크다운 수평선은 물론 본문 중간의 "a---b" 까지 쪼갰다.
+                    //
+                    // ★ 분할은 splitChunks(T-104a)를 쓴다. 규칙을 두 벌 두면 언젠가 어긋난다.
+                    //   'custom' 은 리터럴 문자열 분할이라 정규식 이스케이프가 필요 없다.
+                    //
+                    // ★ 옛 '---' 파일로 되돌아가지 않는다.
+                    //   폴백을 두면 B16 을 그대로 되살리는 셈이다.
+                    //   마커가 없으면 **전체를 1개로** 넣는다 — 과분할보다 훨씬 싸다.
+                    //   사용자는 "1개 등록" 을 즉시 알아채고, 되돌린 뒤
+                    //   일괄 붙여넣기(구분자에 '---' 옵션이 있다)로 다시 넣으면 된다.
+                    const TXT_MARKER = '===PROMPT===';
+                    const hasMarker = text.indexOf(TXT_MARKER) !== -1;
+                    const prompts = hasMarker
+                        ? splitChunks(text, 'custom', TXT_MARKER)
+                        : splitChunks(text, 'none');
                     
                     let addedCount = 0;
                     prompts.forEach((promptText, index) => {
-                        const lines = promptText.split('\n').filter(l => l.trim());
+                        // ★ 제목은 첫 번째 **비어 있지 않은** 줄.
+                        //   본문은 그 줄을 뺀 **나머지 원문 그대로** —
+                        //   전에는 filter(l => l.trim()) 로 빈 줄을 전부 지워
+                        //   문단 구분이 사라졌다 (본문 원문 보존 위반).
+                        //
+                        // ★ 제목 규칙은 T-104 와 다르게 둔다.
+                        //   '===PROMPT===' 를 손으로 넣은 파일은 **구조를 가진 형식**이고,
+                        //   그런 형식에서 첫 줄이 제목인 것은 자연스러운 약속이다.
+                        //   T-104 는 아무 텍스트나 받으므로 suggestTitle 을 쓴다.
+                        const rawLines = promptText.split('\n');
+                        let titleIndex = -1;
+                        for (let i = 0; i < rawLines.length; i++) {
+                            if (rawLines[i].trim()) { titleIndex = i; break; }
+                        }
                         
-                        if (lines.length > 0) {
+                        if (titleIndex !== -1) {
+                            const titleLine = rawLines[titleIndex].trim();
+                            const body = rawLines.slice(titleIndex + 1).join('\n').trim();
                             const newPrompt = {
                                 id: newId(),
-                                title: lines[0].trim() || `프롬프트 ${index + 1}`,
-                                content: lines.slice(1).join('\n').trim() || lines[0],
+                                title: titleLine || `프롬프트 ${index + 1}`,
+                                content: body || titleLine,
                                 // T-104f: TXT 는 카테고리 정보가 없다 — 아무도 고르지 않았다
                                 category: UNCATEGORIZED,
                                 tags: [],
@@ -295,7 +327,12 @@
                         }
 
                         renderPromptList(allPrompts);
-                        showToast(`${addedCount}개의 프롬프트 추가 완료! ✅`);
+                        let txtMessage = `${addedCount}개의 프롬프트 추가 완료! ✅`;
+                        if (!hasMarker) {
+                            txtMessage += `\n구분자 ${TXT_MARKER} 를 찾지 못해 전체를 1개로 넣었습니다.` +
+                                           `\n나누려면 📋 여러 개 붙여넣기를 이용하세요.`;
+                        }
+                        showToast(txtMessage);
                         console.log(`${addedCount}개 프롬프트 추가됨 (TXT)`);
                     } else {
                         alert('유효한 프롬프트를 찾을 수 없습니다.');
