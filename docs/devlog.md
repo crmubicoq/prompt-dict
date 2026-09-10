@@ -690,6 +690,50 @@ document.head.appendChild(s);
 방향이 반대라 한 가지 대처로 덮이지 않는다 —
 **타이밍은 실제 신호를 기다리고, 스타일과 성능은 가상 시간을 끄고 잰다.**
 
+
+#### ★ `transition: all` 은 테스트만 속이는 게 아니다
+
+여기까지는 헤드리스 **측정** 함정으로 적었다. 그런데 같은 그림자가
+**제품 코드에도** 있다.
+
+```css
+button { transition: all 0.2s ease; }   /* visibility 까지 전이된다 */
+```
+
+`visibility` 는 전이 가능한 속성이다. 그래서 숨겨야 할 버튼이
+**전이 시간 동안 계속 클릭 가능하다.** 사용자 눈에는 원인 없이
+"가끔 안 먹는 버튼"으로 보인다 — 재현 조건이 0.2초라 버그 리포트도 애매해진다.
+
+T-211의 스크롤 버튼에서 실제로 그랬다. 측정이 이상해서 들여다봤더니
+측정만의 문제가 아니었다.
+
+```css
+/* ✗ 표시 전환까지 느려진다 */
+transition: all 0.2s ease;
+
+/* ✓ 색만 부드럽게, 표시 전환은 즉시 */
+transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+```
+
+→ **`transition` 에 `all` 을 쓰지 않는다.** 전이시킬 속성만 나열한다.
+→ **표시·입력에 관여하는 속성(`visibility`, `pointer-events`, `display`)은
+  전이 대상에서 뺀다.** 이 값들은 "보이나/눌리나"를 결정하므로 중간 상태가
+  있으면 안 된다.
+
+#### 문서를 썼다고 매번 적용되지는 않는다
+
+이 절을 쓰고 나서도 프로브 하나에 트랜지션 차단을 빠뜨려 **같은 함정에
+다시 걸렸다.** `.scroll-btn` 이 안 먹는 줄 알고 CSS 명시도를 뒤졌다.
+
+기억에 기대는 대응은 실패한다. 검증 스크립트의 **공통 준비 단계**에 넣는다.
+
+```js
+// 모든 헤드리스 프로브 맨 앞에
+var s = document.createElement('style');
+s.textContent = '* { transition: none !important; animation: none !important; }';
+document.head.appendChild(s);
+```
+
 ### 5.10 ★ `grep -c $'\x00'` 는 NUL 을 세지 않는다
 
 bash 는 문자열에 NUL 을 담을 수 없다. `$'\x00'` 는 **빈 문자열**이 되고,
