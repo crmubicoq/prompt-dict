@@ -122,48 +122,44 @@
 
             // T-009c-1: 실패 시 되돌릴 스냅샷
             // 배열 요소를 제거만 하므로 얕은 복사로 충분하다 (객체 내부는 안 바꿈)
+            // ★ T-118: 즐겨찾기는 스냅샷에서 뺐다 (아래 참조)
             const snapshot = {
                 prompts: [...allPrompts],
-                favorites: new Set(favoriteIds),
                 selected: new Set(selectedPromptIds)
             };
 
+            const deletedIds = [...selectedPromptIds];
+
             // 삭제 처리
-            selectedPromptIds.forEach(id => {
+            deletedIds.forEach(id => {
                 const index = allPrompts.findIndex(p => p.id === id);
                 if (index !== -1) {
                     allPrompts.splice(index, 1);
                 }
-
-                // 즐겨찾기에서도 제거
-                if (favoriteIds.has(id)) {
-                    favoriteIds.delete(id);
-                }
             });
 
-            const deletedCount = selectedPromptIds.size;
+            const deletedCount = deletedIds.length;
             selectedPromptIds.clear();
 
-            // 저장 — 프롬프트와 즐겨찾기 둘 다 바뀌었다
-            const okPrompts = await PromptStorage.savePrompts(allPrompts);
-            const okFavorites = okPrompts === true
-                ? await PromptStorage.saveFavorites(favoriteIds)
-                : false;
-
-            if (okPrompts !== true || okFavorites !== true) {
+            // ★ T-118: 프롬프트 저장 하나만 필수다.
+            //   favCount 가 교집합이 된 뒤로 남은 즐겨찾기 id 는 어디서도 읽히지 않는다.
+            if (await PromptStorage.savePrompts(allPrompts) !== true) {
                 allPrompts = snapshot.prompts;
-                favoriteIds = snapshot.favorites;
                 selectedPromptIds = snapshot.selected;
-
-                // 프롬프트만 저장된 상태면 되돌린 값으로 다시 써 둔다 (최선 노력)
-                if (okPrompts === true) {
-                    await PromptStorage.savePrompts(allPrompts);
-                }
-
                 applyFilters();
                 updateSelectedCount();
                 showToast('저장 실패 — 변경을 되돌렸습니다 ❌');
                 return;
+            }
+
+            // 삭제가 확정된 뒤 즐겨찾기 정리 (최선 노력)
+            let favoritesChanged = false;
+            deletedIds.forEach(id => {
+                if (favoriteIds.delete(id)) favoritesChanged = true;
+            });
+            if (favoritesChanged &&
+                await PromptStorage.saveFavorites(favoriteIds) !== true) {
+                console.warn('[일괄 삭제] 즐겨찾기 정리를 저장하지 못했습니다 — 다음 로드에서 정리됩니다.');
             }
 
             // UI 업데이트

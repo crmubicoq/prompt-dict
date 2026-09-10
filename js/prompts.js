@@ -590,7 +590,8 @@
             }
 
             // T-009c-1: 실패 시 되돌릴 스냅샷
-            const snapshot = { prompts: [...allPrompts], favorites: new Set(favoriteIds) };
+            // ★ T-118: 즐겨찾기는 더 이상 스냅샷에 넣지 않는다 (아래 참조)
+            const snapshotPrompts = [...allPrompts];
 
             // 프롬프트 삭제
             const index = allPrompts.findIndex(p => p.id === promptId);
@@ -598,29 +599,25 @@
                 allPrompts.splice(index, 1);
             }
 
-            // 즐겨찾기에서도 제거
-            if (favoriteIds.has(promptId)) {
-                favoriteIds.delete(promptId);
-            }
-
-            // 저장 — 프롬프트와 즐겨찾기 둘 다 바뀌었다
-            const okPrompts = await PromptStorage.savePrompts(allPrompts);
-            const okFavorites = okPrompts === true
-                ? await PromptStorage.saveFavorites(favoriteIds)
-                : false;
-
-            if (okPrompts !== true || okFavorites !== true) {
-                allPrompts = snapshot.prompts;
-                favoriteIds = snapshot.favorites;
-
-                // 프롬프트만 저장된 상태면 되돌린 값으로 다시 써 둔다 (최선 노력)
-                if (okPrompts === true) {
-                    await PromptStorage.savePrompts(allPrompts);
-                }
-
+            // ★ T-118: 저장은 프롬프트 하나만 필수다.
+            //   전에는 프롬프트와 즐겨찾기를 함께 저장하고 하나라도 실패하면
+            //   둘 다 되돌렸다 — 두 키를 원자적으로 써야 하는 구조였다.
+            //   favCount 를 교집합으로 바꾼 뒤로 남은 id 는 아무 데서도 읽히지 않으므로,
+            //   즐겨찾기 정리는 실패해도 되는 뒷정리가 됐다.
+            if (await PromptStorage.savePrompts(allPrompts) !== true) {
+                allPrompts = snapshotPrompts;
                 applyFilters();
                 showToast('저장 실패 — 변경을 되돌렸습니다 ❌');
                 return;
+            }
+
+            // 삭제가 확정된 뒤 즐겨찾기를 정리한다 (최선 노력).
+            // 실패해도 되돌리지 않는다 — 남은 id 는 무해하고 다음 로드에서 정리된다.
+            if (favoriteIds.has(promptId)) {
+                favoriteIds.delete(promptId);
+                if (await PromptStorage.saveFavorites(favoriteIds) !== true) {
+                    console.warn('[삭제] 즐겨찾기 정리를 저장하지 못했습니다 — 다음 로드에서 정리됩니다.');
+                }
             }
 
             // 상세 모달 닫기
@@ -684,7 +681,6 @@
                 tags: [...prompt.tags], // 배열 복사
                 description: prompt.description || '',
                 createdAt: new Date().toISOString(), // 새 생성 시간
-                isFavorite: false // 즐겨찾기는 해제
             };
 
             // T-009c-1: 실패 시 되돌릴 스냅샷 (이 함수는 프롬프트만 바꾼다)
@@ -953,8 +949,7 @@
                     tags: tags,
                     description: description,
                     notes: notes,
-                    createdAt: new Date().toISOString(),
-                    isFavorite: false
+                    createdAt: new Date().toISOString()
                 };
                 
                 // 썸네일 이미지 추가 (있으면)

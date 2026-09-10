@@ -116,8 +116,7 @@
                                 //   썸네일도 같은 이유로 빠져 있었다 — 백업을 여기로 다시
                                 //   불러오면 둘 다 사라졌다.
                                 notes: prompt.notes || '',
-                                createdAt: prompt.createdAt || new Date().toISOString(),
-                                isFavorite: false
+                                createdAt: prompt.createdAt || new Date().toISOString()
                             };
 
                             if (prompt.thumbnailImage) {
@@ -210,8 +209,7 @@
                                 description: values[4] || '',
                                 // T-114(B14): 6번째 열이 있으면 메모로 읽는다
                                 notes: values[5] || '',
-                                createdAt: new Date().toISOString(),
-                                isFavorite: false
+                                createdAt: new Date().toISOString()
                             };
                             
                             if (newPrompt.content) {
@@ -279,8 +277,7 @@
                                 description: '',
                                 // T-114(B14): TXT 에는 메모 개념이 없다. 빈 값으로 명시한다
                                 notes: '',
-                                createdAt: new Date().toISOString(),
-                                isFavorite: false
+                                createdAt: new Date().toISOString()
                             };
                             
                             allPrompts.unshift(newPrompt);

@@ -330,6 +330,35 @@
                 favoriteIds = new Set(storedFavorites);
             }
 
+            // ★ T-118: 메모리 정리 두 가지. **저장을 강제하지 않는다** —
+            //   여기서 쓰기를 걸면 초기화가 실패할 새 경로가 생긴다.
+            //   메모리가 깨끗하면 읽기·내보내기는 이미 깨끗하고,
+            //   다음에 무엇이든 저장될 때 정리된 모양이 함께 기록된다.
+
+            //   (1) 죽은 즐겨찾기 id — 가리키는 프롬프트가 사라진 것
+            const liveIds = new Set(allPrompts.map(p => p.id));
+            let dangling = 0;
+            favoriteIds.forEach(id => {
+                if (!liveIds.has(id)) { favoriteIds.delete(id); dangling++; }
+            });
+            if (dangling > 0) {
+                console.log('[초기화] 사라진 프롬프트를 가리키던 즐겨찾기 ' + dangling + '개를 정리했습니다.');
+            }
+
+            //   (2) 옛 isFavorite 필드 — T-118 이전 데이터에 남아 있다.
+            //       읽는 곳이 없어 무해하지만, 남겨두면 나중에 이 필드를
+            //       즐겨찾기의 근거로 오해할 수 있다 (P3 마이그레이션 등).
+            let legacyFlags = 0;
+            allPrompts.forEach(p => {
+                if (Object.prototype.hasOwnProperty.call(p, 'isFavorite')) {
+                    delete p.isFavorite;
+                    legacyFlags++;
+                }
+            });
+            if (legacyFlags > 0) {
+                console.log('[초기화] 옛 isFavorite 필드 ' + legacyFlags + '개를 메모리에서 제거했습니다 (T-118).');
+            }
+
             // 카테고리는 키가 없을 때만 기본값. 저장된 빈 배열은 존중한다 (기존 동작 유지)
             const needsDefaultCategories = storedCategories === null;
             categories = needsDefaultCategories ? [...defaultCategories] : storedCategories;

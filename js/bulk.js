@@ -717,8 +717,7 @@
                 tags: [],
                 description: '',
                 notes: '',
-                createdAt: createdAt,
-                isFavorite: false
+                createdAt: createdAt
             };
         }
 

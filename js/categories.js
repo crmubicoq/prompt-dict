@@ -77,7 +77,14 @@
             // 즐겨찾기 개수
             const favoritesBtn = document.getElementById('favorites-btn');
             if (favoritesBtn) {
-                const favCount = favoriteIds.size;
+                // ★ T-118: Set 크기가 아니라 **실제 존재하는 프롬프트와의 교집합**이다.
+                //   삭제된 프롬프트의 id 가 favoriteIds 에 남아 있을 수 있는데,
+                //   size 를 쓰면 그 유령까지 세어 사이드바 숫자가 부풀었다.
+                //   이 한 줄이 "남은 id 는 무해하다" 를 성립시키고,
+                //   그 덕에 삭제 경로에서 즐겨찾기 저장을 필수에서 뺄 수 있다.
+                const favCount = allPrompts.filter(function (p) {
+                    return favoriteIds.has(p.id);
+                }).length;
                 favoritesBtn.textContent = `⭐ 즐겨찾기 (${favCount})`;
             }
         }

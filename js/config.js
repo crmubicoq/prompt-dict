@@ -43,8 +43,7 @@
                 category: '개발',
                 tags: ['코딩', '비개발자', 'PM', '가이드'],
                 description: '비개발자를 위한 AI 코딩 도구 활용 가이드. 3단계 규칙으로 체계적인 개발 진행.',
-                createdAt: new Date('2026-01-19').toISOString(),
-                isFavorite: false
+                createdAt: new Date('2026-01-19').toISOString()
             },
             {
                 id: '7b2e9d40-6c18-4f73-8a5d-1e0b3c97f452', // T-116: 고정 UUID (config.js 는 newId() 보다 먼저 로드됨)
@@ -66,8 +65,7 @@
                 category: '콘텐츠',
                 tags: ['블로그', 'SEO', '글쓰기'],
                 description: 'SEO를 고려한 블로그 콘텐츠 작성 템플릿. 구조화된 형식으로 독자 친화적인 글 작성.',
-                createdAt: new Date('2026-01-18').toISOString(),
-                isFavorite: false
+                createdAt: new Date('2026-01-18').toISOString()
             },
             {
                 id: 'c4d17e85-9a2b-4c60-b3f8-5d72a08e1963', // T-116: 고정 UUID (config.js 는 newId() 보다 먼저 로드됨)
@@ -94,8 +92,7 @@
                 category: '분석',
                 tags: ['데이터', '통계', '시각화', '리포트'],
                 description: '데이터를 체계적으로 분석하고 비즈니스 인사이트를 도출하는 프롬프트.',
-                createdAt: new Date('2026-01-17').toISOString(),
-                isFavorite: false
+                createdAt: new Date('2026-01-17').toISOString()
             }
         ];
 
