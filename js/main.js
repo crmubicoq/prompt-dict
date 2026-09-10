@@ -90,6 +90,9 @@
             // 이미지 썸네일 설정
             setupThumbnailFeature();
 
+            // T-211: 맨 위 / 맨 아래 스크롤 버튼
+            setupScrollButtons();
+
             // T-115: 초기화는 됐지만 일부 키가 손상된 경우
             //   (검색 기록처럼 치명적이지 않은 키는 여기까지 온다)
             if (PromptStorage.isReadFailed) {

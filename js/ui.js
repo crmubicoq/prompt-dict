@@ -412,3 +412,116 @@
             const closeBtn = banner.querySelector('#recovery-close-btn');
             if (closeBtn) closeBtn.addEventListener('click', hideRecoveryBanner);
         }
+
+        // ========================================
+        // T-211: 맨 위 / 맨 아래 스크롤 버튼
+        // ========================================
+        //
+        // ★ 두 버튼을 다 두되 각자 필요할 때만 보인다.
+        //   맨 위에서 ↑, 맨 아래에서 ↓ 는 눌러도 아무 일이 없는데,
+        //   죽은 버튼이 계속 보이면 사용자가 컨트롤 자체를 무시하게 된다.
+        //   하나로 합쳐 상황에 따라 뜻을 바꾸는 것은 더 나쁘다 —
+        //   같은 자리가 다른 일을 하면 예측할 수 없고, 목록 중간에서는 둘 다 필요하다.
+        //
+        // ★ 숨길 때 display 가 아니라 visibility 를 쓴다.
+        //   display:none 이면 ↓ 가 사라질 때 ↑ 가 그 자리로 내려온다 —
+        //   커서 아래에서 버튼이 움직이면 오클릭이 난다. 자리는 항상 고정.
+        //   (visibility:hidden 은 탭 순서에서도 빠지므로 키보드 접근도 맞다)
+
+        // 버튼이 나타나는 기준 — 화면 높이의 절반
+        //
+        // ★ 고정 px 로 잡으면 900px 화면과 1440px 화면에서 체감이 달라진다.
+        //   "한 화면의 절반쯤 지나왔다" 는 화면 크기에 비례해야 같은 의미가 된다.
+        function scrollButtonThreshold() {
+            return Math.max(200, window.innerHeight / 2);
+        }
+
+        // 스크롤 위치에 따라 두 버튼의 표시를 갱신한다.
+        function updateScrollButtons() {
+            const box = document.getElementById('scroll-buttons');
+            if (!box) return;
+
+            const topBtn = document.getElementById('scroll-top-btn');
+            const bottomBtn = document.getElementById('scroll-bottom-btn');
+
+            const doc = document.documentElement;
+            const scrolled = window.pageYOffset || doc.scrollTop || 0;
+            const viewport = window.innerHeight;
+            const total = Math.max(doc.scrollHeight, document.body.scrollHeight);
+            const remaining = total - viewport - scrolled;
+            const threshold = scrollButtonThreshold();
+
+            // ★ 스크롤할 것이 없으면 통째로 감춘다.
+            //   필터로 2~3개만 남았을 때 떠 있는 버튼은 방해만 된다.
+            //
+            // ★ 기준을 임계값과 같게 잡는다. 스크롤 가능 거리가 임계값 이하면
+            //   scrolled > threshold 도 remaining > threshold 도 결코 참이 될 수 없어
+            //   두 버튼이 영원히 숨어 있다 — 그럴 바엔 상자째 없앤다.
+            //   (카드 1장일 때 문서가 뷰포트보다 10px 큰 경우가 실제로 나왔다.
+            //    몇 px 이라도 스크롤되면 표시하는 기준은 쓸모없는 버튼을 남긴다)
+            if (total - viewport <= threshold) {
+                box.style.display = 'none';
+                return;
+            }
+            box.style.display = '';
+
+            if (topBtn) topBtn.style.visibility = scrolled > threshold ? 'visible' : 'hidden';
+            if (bottomBtn) bottomBtn.style.visibility = remaining > threshold ? 'visible' : 'hidden';
+        }
+
+        // 부드럽게 스크롤한다.
+        //
+        // ★ 즉시 이동하면 150개 목록에서 "어디로 왔는지" 감각이 끊긴다.
+        //   다만 prefers-reduced-motion 을 존중한다 — 움직임에 민감한 사용자에게는
+        //   부드러운 스크롤이 그 자체로 문제다.
+        function scrollToPosition(top) {
+            let behavior = 'smooth';
+            if (window.matchMedia &&
+                window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                behavior = 'auto';
+            }
+
+            try {
+                window.scrollTo({ top: top, behavior: behavior });
+            } catch (error) {
+                // 옵션 객체를 못 받는 환경 대비
+                window.scrollTo(0, top);
+            }
+        }
+
+        function setupScrollButtons() {
+            const box = document.getElementById('scroll-buttons');
+            if (!box) return;
+
+            const topBtn = document.getElementById('scroll-top-btn');
+            const bottomBtn = document.getElementById('scroll-bottom-btn');
+
+            if (topBtn) {
+                topBtn.addEventListener('click', function () { scrollToPosition(0); });
+            }
+            if (bottomBtn) {
+                bottomBtn.addEventListener('click', function () {
+                    const doc = document.documentElement;
+                    scrollToPosition(Math.max(doc.scrollHeight, document.body.scrollHeight));
+                });
+            }
+
+            // ★ 스크롤 이벤트마다 레이아웃을 읽으면 150개에서 버벅인다.
+            //   requestAnimationFrame 으로 한 프레임에 한 번만 계산한다.
+            //   passive: true — 이 핸들러는 preventDefault 를 쓰지 않으므로
+            //   브라우저가 스크롤을 기다리지 않아도 된다고 알려준다.
+            let ticking = false;
+            function onScroll() {
+                if (ticking) return;
+                ticking = true;
+                requestAnimationFrame(function () {
+                    ticking = false;
+                    updateScrollButtons();
+                });
+            }
+
+            window.addEventListener('scroll', onScroll, { passive: true });
+            window.addEventListener('resize', onScroll, { passive: true });
+
+            updateScrollButtons();
+        }

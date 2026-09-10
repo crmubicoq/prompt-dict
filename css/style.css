@@ -478,6 +478,61 @@
         }
 
 
+
+        /* ========================================
+           T-211: 맨 위 / 맨 아래 스크롤 버튼
+        ======================================== */
+        :root {
+            /* ★ P4 의 FAB "🏠 Hub" 가 우하단에 들어올 자리.
+               FAB 을 넣을 때 이 값만 조정하면 스크롤 버튼이 함께 비켜난다. */
+            --fab-reserve: 88px;
+        }
+
+        .scroll-buttons {
+            position: fixed;
+            right: 24px;
+            bottom: calc(var(--fab-reserve) + 16px);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            /* 모달(1000)·복구 배너(3000)보다 아래. 열린 모달을 가리지 않는다 */
+            z-index: 900;
+        }
+
+        .scroll-btn {
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            border-radius: 50%;
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-md);
+            cursor: pointer;
+            /* ★ 자리를 비워 둔 채 숨긴다 — 하나가 사라져도 다른 하나가
+               움직이지 않아야 커서 아래에서 버튼이 바뀌지 않는다 */
+            visibility: hidden;
+            /* ★ button 공통 규칙의 transition: all 은 visibility 까지 포함한다.
+               그러면 숨겨야 할 버튼이 0.2초 동안 계속 클릭되고,
+               getComputedStyle 도 그동안 옛 값을 돌려준다 (devlog §5.9).
+               색만 부드럽게 하고 표시 전환은 즉시. */
+            transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .scroll-btn:hover {
+            background-color: var(--accent-primary);
+            color: #ffffff;
+            border-color: var(--accent-primary);
+        }
+
+        .scroll-btn:focus-visible {
+            outline: 2px solid var(--accent-primary);
+            outline-offset: 2px;
+        }
+
         /* ========================================
            T-115: 손상 복구 배너
         ======================================== */
@@ -1199,8 +1254,18 @@
         }
 
         /* 새 프롬프트 추가 버튼 */
+        /* T-210: 만들기 액션 줄 */
+        #create-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
         #add-prompt-btn {
-            width: 100%;
+            /* ★ 목록을 다루는 줄과 성격이 달라 시각적으로도 앞선다.
+               넓게 차지해 "여기서 시작한다"가 보이게 한다. */
+            flex: 1 1 260px;
             padding: 16px;
             font-size: 16px;
             font-weight: 600;
@@ -1210,6 +1275,26 @@
             border-radius: 12px;
             cursor: pointer;
             transition: all 0.2s;
+        }
+
+        #bulk-paste-btn {
+            flex: 0 0 auto;
+            min-width: 170px;
+            padding: 16px 20px;
+            font-size: 15px;
+            font-weight: 600;
+            background-color: #6f42c1;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #bulk-paste-btn:hover {
+            background-color: #5a34a0;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
         }
 
         #add-prompt-btn:hover {
@@ -1265,6 +1350,28 @@
         @media (max-width: 768px) {
             #sidebar {
                 display: none;
+            }
+
+            /* T-211: 좁은 화면에서는 조금 작게, 가장자리에 더 붙인다 */
+            .scroll-buttons {
+                right: 12px;
+                bottom: calc(var(--fab-reserve) + 8px);
+                gap: 8px;
+            }
+
+            .scroll-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 16px;
+            }
+
+            /* T-210: 만들기 두 버튼은 각자 한 줄. 나란히 두면 둘 다 좁아져
+               "여러 개 붙여넣기" 가 줄바꿈되거나 잘린다. */
+            #add-prompt-btn,
+            #bulk-paste-btn {
+                flex: 1 1 100%;
+                padding: 14px;
+                font-size: 15px;
             }
 
             /* T-208: 검색창은 한 줄을 다 쓰고, 정렬과 선택 모드가 다음 줄로 */

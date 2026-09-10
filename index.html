@@ -87,6 +87,16 @@
         <!-- 1.6: 메인 콘텐츠 영역 -->
         <main id="content-area">
             
+            <!-- T-210: 만들기 액션. 검색 줄 위에 둔다.
+                 ★ 검색 줄과 합치지 않는다 — 컨트롤 5개가 한 줄에 들어가면
+                   flex:1 검색창이 노트북 폭에서 쓸 수 없을 만큼 줄어든다.
+                 ★ 검색 아래가 아니라 위다 — 검색은 결과 바로 위에 붙어 있어야
+                   하고, 선택 모드 툴바가 나타나도 이 줄은 밀리지 않는다. -->
+            <div id="create-actions">
+                <button id="add-prompt-btn">+ 새 프롬프트 추가</button>
+                <button id="bulk-paste-btn">📋 여러 개 붙여넣기</button>
+            </div>
+
             <!-- 1.7: 검색창 및 정렬 -->
             <div id="search-container">
                 <input 
@@ -134,12 +144,6 @@
             <!-- 프롬프트 카드들이 표시될 영역 -->
             <div id="prompts-grid">
                 <!-- JavaScript로 동적 생성됩니다 -->
-            </div>
-
-            <!-- 1.8: 새 프롬프트 추가 버튼 & 선택 모드 -->
-            <div style="display: flex; gap: 12px;">
-                <button id="add-prompt-btn" style="flex: 1;">+ 새 프롬프트 추가</button>
-                <button id="bulk-paste-btn" style="flex: 0 0 auto; min-width: 150px; background-color: #6f42c1;">📋 여러 개 붙여넣기</button>
             </div>
 
         </main>
@@ -197,6 +201,18 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- ========================================
+         T-211: 맨 위 / 맨 아래 스크롤 버튼
+         ★ P4 에서 우하단에 FAB "🏠 Hub" 가 들어온다.
+           그 자리를 비워 두려고 --fab-reserve 만큼 띄웠다 (css 참조).
+    ======================================== -->
+    <div id="scroll-buttons" class="scroll-buttons">
+        <button type="button" id="scroll-top-btn" class="scroll-btn"
+                aria-label="맨 위로" title="맨 위로">↑</button>
+        <button type="button" id="scroll-bottom-btn" class="scroll-btn"
+                aria-label="맨 아래로" title="맨 아래로">↓</button>
     </div>
 
     <!-- ========================================
