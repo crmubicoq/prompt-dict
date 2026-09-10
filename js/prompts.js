@@ -81,17 +81,9 @@
             // 4. 결과 렌더링
             renderPromptList(filteredPrompts);
 
-            // 검색 결과 없을 때 메시지
-            if (filteredPrompts.length === 0 && (currentSearchQuery || currentFilter !== 'all')) {
-                const grid = document.getElementById('prompts-grid');
-                grid.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🔍</div>
-                        <h3>검색 결과가 없습니다</h3>
-                        <p>다른 검색어나 필터를 시도해보세요</p>
-                    </div>
-                `;
-            }
+            // ★ T-120: 빈 상태 문구는 renderPromptList 가 단독으로 그린다.
+            //   전에는 여기서 한 번 더 덮어써, 같은 자리를 두 번 칠하고
+            //   문구가 두 곳에 흩어져 있었다.
         }
 
         // 정렬 함수
@@ -342,12 +334,34 @@
             const grid = document.getElementById('prompts-grid');
 
             // 5.8: 빈 목록 처리
+            //
+            // ★ T-120: 두 가지 "비어 있음" 을 구분한다.
+            //   - 사전이 통째로 비었다 → 무엇부터 하면 되는지 안내한다 (첫 사용자)
+            //   - 필터·검색 결과가 없다 → 안내하면 거짓말이다. 프롬프트는 있다
+            //   구분하지 않으면 33개를 가진 사용자가 검색 한 번에
+            //   "아직 등록된 프롬프트가 없습니다" 를 보게 된다.
+            //
+            // ★ 여기에 버튼을 또 만들지 않는다. T-210 이후 [+ 새 프롬프트 추가] 와
+            //   [📋 여러 개 붙여넣기] 가 목록 바로 위에 늘 보인다. 이름으로 가리키면 된다.
             if (!prompts || prompts.length === 0) {
-                grid.innerHTML = `
+                const dictionaryIsEmpty = allPrompts.length === 0;
+                grid.innerHTML = dictionaryIsEmpty
+                    ? `
                     <div class="empty-state">
                         <div class="empty-state-icon">📭</div>
-                        <h3>프롬프트가 없습니다</h3>
-                        <p>"+ 새 프롬프트 추가" 버튼을 눌러 첫 프롬프트를 만들어보세요!</p>
+                        <h3>아직 등록된 프롬프트가 없습니다</h3>
+                        <p>흩어져 있는 프롬프트를 여기로 모아 보세요.</p>
+                        <p class="empty-state-hint">
+                            위의 <strong>+ 새 프롬프트 추가</strong> 로 하나씩,<br>
+                            <strong>📋 여러 개 붙여넣기</strong> 로 메모장·카톡에서 한 번에 담을 수 있습니다.
+                        </p>
+                    </div>
+                `
+                    : `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <h3>검색 결과가 없습니다</h3>
+                        <p>다른 검색어나 필터를 시도해보세요</p>
                     </div>
                 `;
 

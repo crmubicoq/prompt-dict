@@ -322,9 +322,13 @@
             const storedCategories = await PromptStorage.getCategories();
 
             // --- 2) 검증 및 전역 상태 대입 ---
-            // 키 없음(null)과 저장된 빈 배열([]) 모두 "샘플 필요"로 본다 (기존 동작 유지)
-            const needsSamplePrompts = !storedPrompts || storedPrompts.length === 0;
-            allPrompts = needsSamplePrompts ? [...sampleData] : storedPrompts;
+            //
+            // ★ T-120: 빈 저장소에 샘플을 자동으로 넣지 않는다.
+            //   - 이 사전은 P4 에서 **팀 공용**이 된다. 팀원이 처음 들어왔을 때
+            //     코드가 임의의 프롬프트를 공용 저장소에 밀어 넣으면 안 된다
+            //   - 사용자가 만들지 않은 데이터가 섞이면 T-105 정리 대상과 구별되지 않는다
+            //   - 초기화에서 쓰기가 하나 사라져 실패 경로도 하나 줄었다
+            allPrompts = storedPrompts || [];
 
             if (storedFavorites) {
                 favoriteIds = new Set(storedFavorites);
@@ -366,15 +370,9 @@
             // --- 3) 그다음에 기본값 저장 ---
             // 여기서 실패하면 되돌릴 이전 상태가 없다 — 비어 있어서 쓰는 것이다.
             // 롤백 대신 초기화 실패로 올려 main.js 리스너1이 렌더링을 중단하게 한다.
-            if (needsSamplePrompts) {
-                // 샘플 주입은 favoriteIds 를 건드리지 않으므로 프롬프트만 저장한다
-                if (await PromptStorage.savePrompts(allPrompts) !== true) {
-                    throw new Error('샘플 데이터를 저장하지 못했습니다.');
-                }
-                console.log('샘플 데이터 로드 완료 ✅');
-            } else {
-                console.log(`저장된 프롬프트 ${allPrompts.length}개 로드 완료 ✅`);
-            }
+            //
+            // ★ T-120 이후 프롬프트는 여기서 쓰지 않는다. 비어 있으면 비어 있는 채로 둔다.
+            console.log(`저장된 프롬프트 ${allPrompts.length}개 로드 완료 ✅`);
 
             if (needsDefaultCategories) {
                 if (await PromptStorage.saveCategories(categories) !== true) {
