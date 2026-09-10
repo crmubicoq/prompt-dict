@@ -107,6 +107,7 @@
                 <select id="sort-select">
                     <option value="newest">최신순</option>
                     <option value="oldest">오래된순</option>
+                    <option value="updated">수정순</option>
                     <option value="name-asc">이름순 (가나다)</option>
                     <option value="name-desc">이름순 (하바파)</option>
                     <option value="category">카테고리순</option>
@@ -577,6 +578,7 @@
          *   tags: 태그 배열 (배열),
          *   description: 설명 (문자열),
          *   createdAt: 작성일 (ISO 문자열),
+         *   updatedAt: 마지막 수정일 (ISO 문자열, 수정된 적 없으면 없음 — T-117)
          *   isFavorite: 즐겨찾기 여부 (불린)
          * }
          */

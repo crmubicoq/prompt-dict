@@ -256,8 +256,15 @@
                     if (!prompt) return;
                     if (prompt.category === categoryName) return;   // 바뀔 것이 없으면 건드리지 않는다
 
-                    changed.push({ prompt: prompt, previous: prompt.category });
+                    // T-117: updatedAt 도 함께 되돌려야 한다 —
+                    //   기록하지 않으면 롤백 후에도 수정 시각만 남는다
+                    changed.push({
+                        prompt: prompt,
+                        previous: prompt.category,
+                        previousUpdatedAt: prompt.updatedAt
+                    });
                     prompt.category = categoryName;
+                    touchPrompt(prompt);
                 });
 
                 if (changed.length === 0) {
@@ -266,7 +273,7 @@
                 }
 
                 if (await PromptStorage.savePrompts(allPrompts) !== true) {
-                    changed.forEach(function (item) { item.prompt.category = item.previous; });
+                    changed.forEach(function (item) { restoreAssigned(item); });
                     applyFilters();
                     showToast('저장 실패 — 분류를 되돌렸습니다 ❌');
                     return;
@@ -287,10 +294,22 @@
                 );
                 console.log(`[일괄 분류] ${changed.length}개 → ${categoryName} (미분류 ${remaining}개 남음)`);
             } catch (error) {
-                changed.forEach(function (item) { item.prompt.category = item.previous; });
+                changed.forEach(function (item) { restoreAssigned(item); });
                 applyFilters();
                 console.error('[일괄 분류] 실패:', error);
                 showToast('분류 중 오류가 발생했습니다 — 되돌렸습니다 ❌');
+            }
+        }
+
+        // 분류를 되돌린다 — 카테고리와 수정 시각을 함께.
+        // ★ updatedAt 은 undefined 였을 수 있다. 그 경우 키 자체를 지워야
+        //   "수정된 적 없음" 상태로 정확히 돌아간다.
+        function restoreAssigned(item) {
+            item.prompt.category = item.previous;
+            if (item.previousUpdatedAt === undefined) {
+                delete item.prompt.updatedAt;
+            } else {
+                item.prompt.updatedAt = item.previousUpdatedAt;
             }
         }
 

@@ -89,6 +89,18 @@
                     sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
                     break;
                     
+                case 'updated':
+                    // T-117: 수정순 (마지막 수정 내림차순)
+                    // ★ 동률이면 createdAt 내림차순으로 갈라 순서를 안정시킨다.
+                    //   updatedAt 이 없는 항목끼리는 폴백값이 곧 createdAt 이라
+                    //   결국 최신순과 같아진다.
+                    sorted.sort((a, b) => {
+                        const diff = new Date(promptUpdatedAt(b)) - new Date(promptUpdatedAt(a));
+                        if (diff !== 0) return diff;
+                        return new Date(b.createdAt) - new Date(a.createdAt);
+                    });
+                    break;
+
                 case 'oldest':
                     // 오래된순 (createdAt 오름차순)
                     sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -625,7 +637,14 @@
             document.querySelector('.category-btn[data-category="all"]').classList.add('active');
             
             // 목록 새로고침
-            renderPromptList(allPrompts);
+            //
+            // ★ renderPromptList 를 직접 부르면 sortPrompts 를 건너뛴다.
+            //   사용자가 고른 정렬이 저장·삭제·복제 때마다 조용히 무시됐다.
+            //   T-117 의 "수정순" 은 바로 이 경로에서 값을 내야 하는데,
+            //   방금 수정한 항목이 최상단으로 오지 않아 드러났다.
+            //   applyFilters 는 정렬과 선택 동기화(T-105)까지 거친다.
+            //   위에서 필터·검색어를 all/빈값으로 되돌렸으므로 결과는 전체 목록이다.
+            applyFilters();
 
             showToast(`프롬프트 "${prompt.title}" 삭제 완료! 🗑️`);
             console.log('프롬프트 삭제:', prompt.title);
@@ -696,7 +715,14 @@
             document.querySelector('.category-btn[data-category="all"]').classList.add('active');
             
             // 목록 새로고침
-            renderPromptList(allPrompts);
+            //
+            // ★ renderPromptList 를 직접 부르면 sortPrompts 를 건너뛴다.
+            //   사용자가 고른 정렬이 저장·삭제·복제 때마다 조용히 무시됐다.
+            //   T-117 의 "수정순" 은 바로 이 경로에서 값을 내야 하는데,
+            //   방금 수정한 항목이 최상단으로 오지 않아 드러났다.
+            //   applyFilters 는 정렬과 선택 동기화(T-105)까지 거친다.
+            //   위에서 필터·검색어를 all/빈값으로 되돌렸으므로 결과는 전체 목록이다.
+            applyFilters();
 
             showToast(`프롬프트 복제 완료! 📋\n"${duplicatedPrompt.title}"`);
             console.log('프롬프트 복제:', duplicatedPrompt.title);
@@ -908,6 +934,9 @@
                     delete prompt.thumbnailImage;
                 }
 
+                // T-117: 사용자가 이 프롬프트를 직접 고쳤다
+                touchPrompt(prompt);
+
                 console.log('프롬프트 수정 완료:', prompt);
                 successMessage = autoTitled
                     ? '프롬프트가 수정되었습니다! ✅ (제목 자동 생성)'
@@ -970,5 +999,12 @@
             document.querySelector('.category-btn[data-category="all"]').classList.add('active');
             
             // 목록 새로고침
-            renderPromptList(allPrompts);
+            //
+            // ★ renderPromptList 를 직접 부르면 sortPrompts 를 건너뛴다.
+            //   사용자가 고른 정렬이 저장·삭제·복제 때마다 조용히 무시됐다.
+            //   T-117 의 "수정순" 은 바로 이 경로에서 값을 내야 하는데,
+            //   방금 수정한 항목이 최상단으로 오지 않아 드러났다.
+            //   applyFilters 는 정렬과 선택 동기화(T-105)까지 거친다.
+            //   위에서 필터·검색어를 all/빈값으로 되돌렸으므로 결과는 전체 목록이다.
+            applyFilters();
         }

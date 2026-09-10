@@ -278,8 +278,15 @@
                 // 해당 카테고리의 프롬프트를 "기타"로 변경
                 allPrompts.forEach(p => {
                     if (p.category === oldCategoryName) {
-                        changedPrompts.push(p);
+                        // T-117: 소속이 실제로 바뀌므로 수정으로 본다.
+                        //   되돌릴 때를 대비해 이전 수정 시각도 기록한다.
+                        changedPrompts.push({
+                            prompt: p,
+                            previousCategory: oldCategoryName,
+                            previousUpdatedAt: p.updatedAt
+                        });
                         p.category = '기타';
+                        touchPrompt(p);
                     }
                 });
 
@@ -289,7 +296,7 @@
                 //   엉뚱한 카테고리가 지워진다.
                 const deleteIndex = categories.findIndex(cat => cat.id === categoryId);
                 if (deleteIndex === -1) {
-                    changedPrompts.forEach(p => { p.category = oldCategoryName; });
+                    changedPrompts.forEach(restoreMovedPrompt);
                     showToast('카테고리를 찾을 수 없습니다 ❌');
                     return;
                 }
@@ -303,7 +310,7 @@
 
                 if (okCategories !== true || okPrompts !== true) {
                     categories = snapshotCategories;
-                    changedPrompts.forEach(p => { p.category = oldCategoryName; });
+                    changedPrompts.forEach(restoreMovedPrompt);
 
                     // 카테고리만 저장된 상태면 되돌린 값으로 다시 써 둔다 (최선 노력)
                     if (okCategories === true) {
@@ -329,6 +336,17 @@
             } catch (error) {
                 console.error('[카테고리] 삭제 실패:', error);
                 showToast('카테고리 삭제 중 오류가 발생했습니다 ❌');
+            }
+        }
+
+        // 카테고리 삭제로 옮겨졌던 프롬프트를 되돌린다.
+        // ★ updatedAt 이 undefined 였다면 키를 지워야 "수정된 적 없음" 으로 돌아간다.
+        function restoreMovedPrompt(item) {
+            item.prompt.category = item.previousCategory;
+            if (item.previousUpdatedAt === undefined) {
+                delete item.prompt.updatedAt;
+            } else {
+                item.prompt.updatedAt = item.previousUpdatedAt;
             }
         }
 

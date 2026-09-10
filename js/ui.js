@@ -525,3 +525,30 @@
 
             updateScrollButtons();
         }
+
+        // T-117: 프롬프트의 "마지막 수정 시각"
+        //
+        // ★ updatedAt 이 없으면 createdAt 으로 폴백한다.
+        //   기존 데이터에 값을 채워 넣지 않는 이유: createdAt 을 복사하면
+        //   "생성 시각에 수정됨" 이라는 **거짓을 저장**하게 되고,
+        //   진짜 수정과 구별할 수 없어진다.
+        //   **부재가 곧 정보다 — 생성 후 한 번도 수정되지 않았다는 뜻.**
+        //   폴백을 여기 한 곳에 가둬 읽는 쪽이 매번 기억하지 않게 한다.
+        function promptUpdatedAt(prompt) {
+            if (!prompt) return 0;
+            return prompt.updatedAt || prompt.createdAt;
+        }
+
+        // 수정 시각 도장. 제자리 변경 경로에서 부른다.
+        //
+        // ★ "수정" 은 사용자가 **그 프롬프트를 대상으로** 한 변경만이다.
+        //   - 폼 수정 / 일괄 분류(T-105) / 카테고리 삭제로 인한 소속 변경 → 갱신
+        //   - editCategory(이름 변경) → 갱신하지 않는다.
+        //     소속은 그대로고 라벨만 바뀐다. 개명 한 번에 100개가 같은 시각이
+        //     되면 "수정순" 정렬이 통째로 무너진다.
+        //   - 즐겨찾기 → 갱신하지 않는다. 프롬프트 객체를 건드리지 않고,
+        //     갱신하면 별 하나에 allPrompts 를 저장해야 해서
+        //     T-118 이 떼어내려는 두 키 동시 저장이 되살아난다.
+        function touchPrompt(prompt) {
+            if (prompt) prompt.updatedAt = new Date().toISOString();
+        }

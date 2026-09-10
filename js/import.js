@@ -123,6 +123,13 @@
                             if (prompt.thumbnailImage) {
                                 newPrompt.thumbnailImage = prompt.thumbnailImage;
                             }
+
+                            // T-117: 있을 때만 옮긴다. 없으면 없는 채로 —
+                            //   부재가 "수정된 적 없음" 이라는 정보다.
+                            //   (notes·thumbnailImage 가 소실됐던 바로 그 자리다)
+                            if (prompt.updatedAt) {
+                                newPrompt.updatedAt = prompt.updatedAt;
+                            }
                             allPrompts.unshift(newPrompt);
                             addedCount++;
                         }
