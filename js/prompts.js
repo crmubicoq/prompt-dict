@@ -48,15 +48,30 @@
                 filteredPrompts = filteredPrompts.filter(p => p.category === currentFilter);
             }
 
-            // 2. 검색어 필터 적용 (제목, 본문, 설명에서 검색)
+            // 2. 검색어 필터 적용
+            //
+            // ★ T-119: 검색 대상은 제목 · 본문 · 설명 · 태그 · **메모**.
+            //   프롬프트의 텍스트 필드를 전수 확인해 빠진 것이 notes 뿐임을 확인했다.
+            //
+            //   일부러 뺀 것들:
+            //   - category — 사이드바에 전용 필터가 있다. 검색에 넣으면
+            //     "개발" 을 치는 순간 그 카테고리 전체가 쏟아진다
+            //   - createdAt / updatedAt — 날짜다. "2026" 이 전부와 일치한다
+            //   - thumbnailImage — base64 data URI 다. "gif" 를 치면
+            //     썸네일 있는 프롬프트가 전부 걸린다. 넣으면 해롭다
+            //   - id — UUID
             if (currentSearchQuery) {
                 filteredPrompts = filteredPrompts.filter(p => {
-                    const titleMatch = p.title.toLowerCase().includes(currentSearchQuery);
-                    const contentMatch = p.content.toLowerCase().includes(currentSearchQuery);
+                    // ★ 필드가 없을 수 있다(손으로 고친 백업 등).
+                    //   여기서 던지면 filter 가 통째로 실패해 목록이 안 그려진다.
+                    const titleMatch = (p.title || '').toLowerCase().includes(currentSearchQuery);
+                    const contentMatch = (p.content || '').toLowerCase().includes(currentSearchQuery);
                     const descMatch = (p.description || '').toLowerCase().includes(currentSearchQuery);
-                    const tagMatch = p.tags.some(tag => tag.toLowerCase().includes(currentSearchQuery));
+                    const notesMatch = (p.notes || '').toLowerCase().includes(currentSearchQuery);
+                    const tagMatch = (p.tags || []).some(
+                        tag => String(tag).toLowerCase().includes(currentSearchQuery));
                     
-                    return titleMatch || contentMatch || descMatch || tagMatch;
+                    return titleMatch || contentMatch || descMatch || notesMatch || tagMatch;
                 });
             }
 
