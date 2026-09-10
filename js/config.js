@@ -10,6 +10,22 @@
         const UNCATEGORIZED = '미분류';
 
         // 전역 변수: 모든 프롬프트를 저장하는 배열
+        // 프롬프트 객체 구조
+        // (index.html 인라인 <script> 에 있던 것을 데이터가 사는 곳으로 옮겼다)
+        /*
+         * 각 프롬프트의 구조:
+         * {
+         *   id: 고유 ID (UUID v4 문자열 — T-116)
+         *   title: 제목 (문자열),
+         *   content: 본문 (문자열),
+         *   category: 카테고리 (문자열),
+         *   tags: 태그 배열 (배열),
+         *   description: 설명 (문자열),
+         *   createdAt: 작성일 (ISO 문자열),
+         *   updatedAt: 마지막 수정일 (ISO 문자열, 수정된 적 없으면 없음 — T-117)
+         *   ※ 즐겨찾기는 이 객체가 아니라 favoriteIds 하나가 들고 있다 (T-118)
+         * }
+         */
         let allPrompts = [];
         let favoriteIds = new Set(); // 즐겨찾기 ID 모음
 

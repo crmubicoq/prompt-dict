@@ -326,7 +326,6 @@
             currentSearchQuery = tag.toLowerCase();
             document.getElementById('search-input').value = tag;
             applyFilters();
-            console.log('태그 필터:', tag);
         }
 
         // 5.5: 목록 렌더링 함수
@@ -379,7 +378,6 @@
             // T-113: 카드별 리스너를 걸지 않는다.
             //   #prompts-grid 에 위임 리스너 하나가 걸려 있다 (setupEventDelegation).
 
-            console.log(`${prompts.length}개의 프롬프트 카드 렌더링 완료 ✅`);
             
             // 카테고리 및 즐겨찾기 개수 업데이트
             updateCategoryCounts();
@@ -517,7 +515,6 @@
                 // 10.6: 토스트 메시지 표시
                 showToast('복사 완료! ✅');
                 
-                console.log('클립보드 복사 성공');
             } catch (error) {
                 console.error('복사 실패:', error);
                 

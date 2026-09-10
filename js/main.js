@@ -15,8 +15,6 @@
         // T-009b: 읽기 경로가 async 가 되어 리스너1도 async 다.
         // ★ 아래 리스너2(상세 모달 버튼)는 동기 그대로 둔다. 합치지도 않는다. (71c81d2)
         document.addEventListener('DOMContentLoaded', async function() {
-            console.log('페이지 로드 완료');
-
             // ★ 초기화에 실패하면 렌더링하지 않고 중단한다.
             //   손상된 상태로 화면을 그리면 사용자가 데이터가 날아간 줄 알고
             //   새로 입력하게 되고, 그 순간 원본이 덮어써진다.
@@ -31,10 +29,6 @@
                 showRecoveryBanner({ fatal: true });
                 return;
             }
-
-            // 테스트: 콘솔에 데이터 출력
-            console.log('현재 프롬프트 개수:', allPrompts.length);
-            console.log('첫 번째 프롬프트:', allPrompts[0]);
 
             // 카테고리 렌더링
             renderCategoryList();
