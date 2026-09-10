@@ -20,15 +20,12 @@
             // 즐겨찾기 버튼 (카테고리 버튼 이벤트는 setupCategoryButtons에서 처리)
             const favoritesBtn = document.getElementById('favorites-btn');
             favoritesBtn.addEventListener('click', function() {
-                // 카테고리 버튼 비활성화
-                const categoryBtns = document.querySelectorAll('.category-btn');
-                categoryBtns.forEach(b => b.classList.remove('active'));
-
-                // T-209: setupCategoryButtons 가 더는 이 버튼을 잡지 않으므로
-                //   active 표시를 여기서 직접 한다.
-                this.classList.add('active');
-
+                // T-128: active 표시는 syncCategoryActive 한 곳에서 만든다.
+                //   전에는 여기서 직접 켰는데, 그 뒤 카테고리 버튼을 누르면
+                //   그쪽 핸들러가 #category-list 안만 끄는 바람에
+                //   즐겨찾기와 카테고리가 **둘 다 켜진 채**로 남았다.
                 currentFilter = 'favorites';
+                syncCategoryActive();
                 applyFilters();
             });
         }
@@ -655,9 +652,10 @@
             document.getElementById('search-input').value = '';
             
             // 카테고리 버튼 "전체" 활성화
-            const categoryBtns = document.querySelectorAll('.category-btn');
-            categoryBtns.forEach(btn => btn.classList.remove('active'));
-            document.querySelector('.category-btn[data-category="all"]').classList.add('active');
+            // T-128: 표시를 만드는 곳을 syncCategoryActive 하나로 모았다.
+            //   전에는 querySelector 결과를 확인 없이 썼는데, "전체" 버튼이
+            //   없는 상태에서 부르면 여기서 TypeError 로 함수가 끊겼다.
+            syncCategoryActive();
             
             // 목록 새로고침
             //
@@ -732,9 +730,10 @@
             document.getElementById('search-input').value = '';
             
             // 카테고리 버튼 "전체" 활성화
-            const categoryBtns = document.querySelectorAll('.category-btn');
-            categoryBtns.forEach(btn => btn.classList.remove('active'));
-            document.querySelector('.category-btn[data-category="all"]').classList.add('active');
+            // T-128: 표시를 만드는 곳을 syncCategoryActive 하나로 모았다.
+            //   전에는 querySelector 결과를 확인 없이 썼는데, "전체" 버튼이
+            //   없는 상태에서 부르면 여기서 TypeError 로 함수가 끊겼다.
+            syncCategoryActive();
             
             // 목록 새로고침
             //
@@ -1015,9 +1014,10 @@
             document.getElementById('search-input').value = '';
             
             // 카테고리 버튼 "전체" 활성화
-            const categoryBtns = document.querySelectorAll('.category-btn');
-            categoryBtns.forEach(btn => btn.classList.remove('active'));
-            document.querySelector('.category-btn[data-category="all"]').classList.add('active');
+            // T-128: 표시를 만드는 곳을 syncCategoryActive 하나로 모았다.
+            //   전에는 querySelector 결과를 확인 없이 썼는데, "전체" 버튼이
+            //   없는 상태에서 부르면 여기서 TypeError 로 함수가 끊겼다.
+            syncCategoryActive();
             
             // 목록 새로고침
             //

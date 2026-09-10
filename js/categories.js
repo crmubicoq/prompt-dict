@@ -6,7 +6,12 @@
             const totalCount = allPrompts.length;
             
             // 전체 버튼 (고정)
-            let html = `<li><button class="category-btn active" data-category="all">전체 (${totalCount})</button></li>`;
+            //
+            // ★ T-128: 여기서 active 를 박지 않는다.
+            //   전에는 항상 "전체"에 active 가 붙어, 재렌더가 일어날 때마다
+            //   사이드바가 실제 currentFilter 와 어긋났다.
+            //   (카테고리 추가·삭제·개명·불러오기가 전부 이 함수를 부른다)
+            let html = `<li><button class="category-btn" data-category="all">전체 (${totalCount})</button></li>`;
             
             // 동적 카테고리
             categories.forEach(cat => {
@@ -24,6 +29,41 @@
             
             // 카테고리 버튼 이벤트 다시 등록
             setupCategoryButtons();
+
+            // T-128: active 표시는 currentFilter 에서만 나온다
+            syncCategoryActive();
+        }
+
+        // T-128: 사이드바 active 표시를 currentFilter 하나에서 만든다.
+        //
+        // ★ 전에는 표시를 만드는 곳이 셋이었다 —
+        //   renderCategoryList 가 "전체"에 하드코딩, 카테고리 버튼 클릭 핸들러가
+        //   자기 자신에, 즐겨찾기 버튼 핸들러가 또 따로. 그래서
+        //   - 카테고리를 추가하면 보고 있던 필터의 표시가 "전체"로 튀고
+        //   - 즐겨찾기를 본 뒤 카테고리를 누르면 **둘 다 켜져 있었다**
+        //     (즐겨찾기 버튼은 #category-list 밖이라 클릭 핸들러의
+        //      해제 대상에서 빠져 있었다)
+        //
+        // ★ 일치하는 버튼이 없으면 아무것도 켜지 않는다. 그 상태는
+        //   "currentFilter 가 목록에 없는 값을 가리킨다"는 뜻이고,
+        //   임의로 "전체"를 켜면 그 어긋남을 감춘다. 부르는 쪽이
+        //   삭제·개명 뒤에 currentFilter 를 옮겨 줘야 한다 (F4).
+        function syncCategoryActive() {
+            document.querySelectorAll('.category-btn').forEach(function (btn) {
+                btn.classList.remove('active');
+            });
+
+            if (currentFilter === 'favorites') {
+                const favoritesBtn = document.getElementById('favorites-btn');
+                if (favoritesBtn) favoritesBtn.classList.add('active');
+                return;
+            }
+
+            // ★ 속성 선택자를 쓰지 않는다 — 카테고리 이름에 따옴표가 들어가면
+            //   선택자가 깨진다. dataset 값을 직접 비교한다.
+            document.querySelectorAll('#category-list .category-btn').forEach(function (btn) {
+                if (btn.dataset.category === currentFilter) btn.classList.add('active');
+            });
         }
 
         // 카테고리 버튼 이벤트 등록
@@ -38,12 +78,9 @@
             const categoryBtns = document.querySelectorAll('#category-list .category-btn');
             categoryBtns.forEach(btn => {
                 btn.addEventListener('click', function() {
-                    // 활성 버튼 스타일 변경
-                    categoryBtns.forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-
-                    // 필터 적용
+                    // 필터 적용 — 표시는 syncCategoryActive 가 만든다 (T-128)
                     currentFilter = this.dataset.category || 'all';
+                    syncCategoryActive();
                     applyFilters();
                 });
             });
@@ -256,7 +293,7 @@
                 const firstConfirm = confirm(
                     `⚠️ "${category.name}" 카테고리를 삭제하시겠습니까?\n\n` +
                     `• 이 카테고리의 프롬프트: ${promptCount}개\n` +
-                    `• 모든 프롬프트는 "기타"로 이동됩니다\n\n` +
+                    `• 모든 프롬프트는 "${UNCATEGORIZED}"로 이동됩니다\n\n` +
                     `정말 삭제하시겠습니까?`
                 );
 
@@ -282,7 +319,22 @@
                 const oldCategoryName = category.name;
                 const changedPrompts = [];
 
-                // 해당 카테고리의 프롬프트를 "기타"로 변경
+                // 해당 카테고리의 프롬프트를 미분류로 변경
+                //
+                // ★ T-128: 전에는 '기타' 문자열이 여기 박혀 있었다. 두 가지로 깨졌다.
+                //   1) "기타"를 개명하면 프롬프트가 **없는 카테고리**를 가리켰다
+                //   2) "기타" 자신을 삭제하면 자기 자신으로 옮긴 뒤 그 카테고리를
+                //      지워, 소속 프롬프트가 통째로 고아가 됐다
+                //
+                // ★ 미분류가 맞는 이유 — decisions §10 이 세운 정의를 그대로 따른다.
+                //   "기타 = 골라서 넣은 것, 미분류 = 아직 안 고른 것".
+                //   카테고리 삭제로 옮겨진 프롬프트는 사용자가 기타를 고른 적이 없다.
+                //   T-105(일괄 분류)가 생긴 뒤로 미분류는 "잃어버리는 곳"이 아니라
+                //   **다시 분류할 대기열**이다. 옛 판단(§T-104f 주석)은 그 수단이
+                //   없던 시점의 것이라 뒤집는다.
+                //
+                // ★ 이미 저장된 '기타' 소속은 건드리지 않는다. 사용자가 직접 고른
+                //   것일 수 있다. 이 변경은 앞으로의 삭제에만 적용된다.
                 allPrompts.forEach(p => {
                     if (p.category === oldCategoryName) {
                         // T-117: 소속이 실제로 바뀌므로 수정으로 본다.
@@ -292,7 +344,7 @@
                             previousCategory: oldCategoryName,
                             previousUpdatedAt: p.updatedAt
                         });
-                        p.category = '기타';
+                        p.category = UNCATEGORIZED;
                         touchPrompt(p);
                     }
                 });
@@ -332,14 +384,30 @@
                     return;
                 }
 
-                // UI 업데이트
+                // F4: 방금 지운 카테고리를 보고 있었다면 필터가 없는 이름을
+                //     붙들어 목록이 빈 화면이 됐다. 옮겨간 곳으로 따라간다.
+                //
+                // ★ 옮긴 것이 있으면 미분류로 — 사용자가 방금 보던 프롬프트가
+                //   그대로 화면에 남고, 그 자리가 곧 다시 분류할 대기열이다.
+                //   옮긴 것이 없으면(빈 카테고리 삭제) 미분류는 남의 목록이라
+                //   전체로 보낸다.
+                // ★ 다른 카테고리를 보고 있었다면 그대로 둔다.
+                if (currentFilter === oldCategoryName) {
+                    currentFilter = changedPrompts.length > 0 ? UNCATEGORIZED : 'all';
+                }
+
+                // UI 업데이트 (renderCategoryList 안에서 active 표시가 맞춰진다)
                 renderCategoryList();
                 renderCategoryDropdown();
                 renderCategoryManageList();
                 applyFilters(); // 현재 필터 다시 적용
 
-                showToast(`카테고리 "${oldCategoryName}" 삭제 완료! ✅`);
-                console.log('카테고리 삭제:', oldCategoryName);
+                // 어디로 갔는지 밝힌다 — 조용히 옮기지 않는다
+                showToast(changedPrompts.length > 0
+                    ? `카테고리 "${oldCategoryName}" 삭제 완료! ✅ 프롬프트 ${changedPrompts.length}개를 ${UNCATEGORIZED}로 옮겼습니다`
+                    : `카테고리 "${oldCategoryName}" 삭제 완료! ✅`);
+                console.log('카테고리 삭제:', oldCategoryName,
+                            `→ ${UNCATEGORIZED} ${changedPrompts.length}개`);
             } catch (error) {
                 console.error('[카테고리] 삭제 실패:', error);
                 showToast('카테고리 삭제 중 오류가 발생했습니다 ❌');
@@ -453,7 +521,14 @@
                     return;
                 }
 
-                // UI 업데이트
+                // F4: 개명한 카테고리를 보고 있었다면 필터도 새 이름으로.
+                //     프롬프트의 category 는 위에서 이미 새 이름으로 바뀌었으므로
+                //     여기를 빼면 옛 이름과 일치하는 것이 하나도 없어 빈 화면이 된다.
+                if (currentFilter === oldName) {
+                    currentFilter = trimmedName;
+                }
+
+                // UI 업데이트 (renderCategoryList 안에서 active 표시가 맞춰진다)
                 renderCategoryList();
                 renderCategoryDropdown();
                 renderCategoryManageList();
@@ -477,8 +552,11 @@
         //   없는 카테고리 이름(예: 파일에 "마케팅")도 마찬가지다.
         //   사용자가 고르긴 했지만 이 시스템에 없는 값이라 재분류가 필요하다.
         //
-        // ※ deleteCategory 의 "소속 프롬프트를 기타로 이동"은 바꾸지 않는다.
-        //   그건 사용자가 이미 분류했던 것이라, 미분류로 되돌리면 정보를 잃는다.
+        // ※ T-128 정정 — deleteCategory 도 미분류로 보낸다.
+        //   T-104f 시점에는 "이미 분류했던 것이라 미분류로 되돌리면 정보를
+        //   잃는다"고 봤다. 그 판단은 미분류를 정리할 수단이 없던 때의 것이다.
+        //   T-105(일괄 분류) 이후 미분류는 대기열이고, 무엇보다
+        //   "기타로 이동"은 사용자가 고르지 않은 분류를 대신 고르는 일이었다.
         function validateCategory(category) {
             if (!category) return UNCATEGORIZED;
 
