@@ -552,3 +552,50 @@
         function touchPrompt(prompt) {
             if (prompt) prompt.updatedAt = new Date().toISOString();
         }
+
+        // ========================================
+        // T-123: Esc 로 모달 닫기 (B17)
+        // ========================================
+        //
+        // ★ 각 모달의 **자기 닫기 함수**를 부른다. 직접 display 를 끄면
+        //   "작성 중인 내용이 있습니다" 확인(closeModal · closeBulkModal)을 건너뛰어
+        //   Esc 한 번에 붙여넣은 150개가 사라진다.
+        //
+        // ★ 순서가 곧 우선순위다 — 겹쳐 있으면 위에 있는 것부터 닫는다.
+        //   지금은 실제로 겹치는 조합이 없다. openEditPromptModal 이
+        //   상세 모달을 먼저 닫으므로 한 번에 하나만 열린다(실측).
+        //   그래도 순서를 정해 두는 이유: 나중에 어떤 모달이 다른 모달 위에서
+        //   열리게 되면, 순서가 없는 코드는 **아래 것을 먼저 닫는** 쪽으로
+        //   조용히 잘못 동작한다. 추가/수정이 가장 안쪽이라 맨 앞에 둔다.
+        //
+        // ★ 손상 복구 배너(T-115)는 여기 없다. 의도적이다 —
+        //   초기화가 중단된 상태에서 유일한 조작 대상인데 Esc 로 사라지면
+        //   복구 경로가 끊긴다. 부분 손상일 때는 [닫기] 버튼이 있다.
+        function closableModals() {
+            return [
+                { id: 'modal-overlay', close: closeModal },              // 추가/수정
+                { id: 'bulk-modal-overlay', close: closeBulkModal },     // 일괄 붙여넣기
+                { id: 'category-modal-overlay', close: closeCategoryModal },
+                { id: 'detail-modal-overlay', close: closeDetailModal }
+            ];
+        }
+
+        function setupEscapeToClose() {
+            document.addEventListener('keydown', function (event) {
+                if (event.key !== 'Escape') return;
+
+                try {
+                    const list = closableModals();
+                    for (let i = 0; i < list.length; i++) {
+                        const el = document.getElementById(list[i].id);
+                        if (!el || el.style.display === 'none' || !el.style.display) continue;
+
+                        // 맨 위 하나만 닫는다
+                        if (typeof list[i].close === 'function') list[i].close();
+                        return;
+                    }
+                } catch (error) {
+                    console.error('[Esc] 모달을 닫는 중 예외:', error);
+                }
+            });
+        }
