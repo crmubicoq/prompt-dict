@@ -636,6 +636,60 @@ HTMLAnchorElement.prototype.click = function () { window.__downloads.push(this.d
 > ⚠ 백그라운드로 돌린 검증이 있는 상태에서 `taskkill /F /IM chrome.exe` 를 하면
 > 그 검증이 통째로 빈 결과가 된다. 실제로 한 번 날렸다.
 
+### 5.9 ★ 가상 시간에서 CSS transition 이 얼어 `getComputedStyle` 이 시작값을 준다
+
+`transition: all 0.2s` 가 걸린 요소의 계산 스타일을 헤드리스에서 읽으면
+**전이 후 값이 아니라 시작값**이 나온다. 클래스는 제대로 붙었는데
+"스타일이 안 먹는다"고 오판하게 된다.
+
+```js
+btn.classList.add('active');          // class = "toolbar-btn active" ✓
+getComputedStyle(btn).backgroundColor // rgb(108,117,125)  ← 꺼짐 색 그대로
+```
+
+T-208에서 `.toolbar-btn.active` 가 적용되지 않는 줄 알고 CSS 명시도·충돌 규칙을
+한참 뒤졌다. **CSS 는 처음부터 맞았다.**
+
+```js
+btn.style.transition = 'none';
+void btn.offsetHeight;                // 강제 reflow
+getComputedStyle(btn).backgroundColor // rgb(66,99,235)  ← --accent-primary
+```
+
+→ **검증 시 트랜지션을 끈다.** 전체를 한 번에 끄는 편이 안전하다.
+
+```js
+var s = document.createElement('style');
+s.textContent = '* { transition: none !important; animation: none !important; }';
+document.head.appendChild(s);
+```
+
+#### 시계도 얼어 있다 — 성능 측정이 불가능하다
+
+같은 이유로 **`Date.now()` 와 `performance.now()` 가 둘 다 멈춘다.**
+동기 코드 안에서는 값이 변하지 않아, 50회를 반복해도 경과 시간이 `0ms` 로 나온다.
+
+```
+가상 시간   : 150행 renderBulkPreview x50 → 0ms   (측정 불가)
+가상 시간 끔: 150행 renderBulkPreview     → 191ms
+```
+
+성능을 재려면 `--virtual-time-budget` 을 빼고, 모든 작업을 `load` 핸들러 안에서
+**동기로** 끝내야 한다 (그래야 `--dump-dom` 이 결과를 잡는다).
+
+#### 정리 — 가상 시간은 "시간에 의존하는 모든 것"을 앞당기지 않는다
+
+| 대상 | 가상 시간에서 |
+|---|---|
+| `setTimeout` / `setInterval` | **즉시 소진** (§5.8) |
+| 실제 I/O (`FileReader`, `fetch`) | 건너뛰지 못한다 (§5.8) |
+| CSS transition / animation | **얼어서 시작값이 남는다** |
+| `Date.now()` / `performance.now()` | **멈춰서 경과가 0** |
+
+앞의 둘은 "너무 빨라서" 틀리고, 뒤의 둘은 "멈춰서" 틀린다.
+방향이 반대라 한 가지 대처로 덮이지 않는다 —
+**타이밍은 실제 신호를 기다리고, 스타일과 성능은 가상 시간을 끄고 잰다.**
+
 ---
 
 ## 6. 검수 배치 — 기계는 매 단계, 사람은 분기점에
