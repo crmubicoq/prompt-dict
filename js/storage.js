@@ -486,8 +486,17 @@
         //   version 문자열로 분기하지 않고 **필드 존재로 판단**한다 —
         //   v1.0 파일에는 categories 가 없으니 그 단계가 저절로 건너뛰어진다.
         //   version 을 믿고 분기하면 손으로 고친 파일에서 어긋난다.
+        // ★ T-127(R2): 사이드바 드래그&드롭도 이 경로를 쓴다.
+        //   그래서 이벤트 핸들러(importData)와 실제 처리(importFromFile)를 나눴다.
+        //   .json 입구는 이제 **여기 하나뿐**이다.
         function importData(e) {
             const file = e.target.files[0];
+            e.target.value = ''; // 같은 파일을 다시 골라도 change 가 뜨도록
+            if (!file) return;
+            importFromFile(file);
+        }
+
+        function importFromFile(file) {
             if (!file) return;
 
             const reader = new FileReader();
@@ -504,15 +513,53 @@
                         searchHistory: searchHistory
                     };
 
+                    // ★ T-127(R2): 받지 못하는 형식은 "오류" 가 아니라 안내다.
+                    //   전에는 throw 해서 catch 가 "파일을 읽는 중 오류" 로 뭉갰다.
+                    //   읽기는 성공했다 — 모양이 다를 뿐이고, 갈 곳이 따로 있다.
                     if (!data.prompts || !Array.isArray(data.prompts)) {
-                        throw new Error('유효하지 않은 파일 형식입니다.');
+                        alert(
+                            '이 JSON 형식은 지원하지 않습니다.\n\n' +
+                            '백업 파일은 { "prompts": [...] } 모양이어야 합니다.\n' +
+                            '여러 개를 넣으려면 📋 여러 개 붙여넣기를 쓰세요.'
+                        );
+                        console.warn('[불러오기] prompts 배열이 없는 JSON — 처리하지 않았습니다.');
+                        return;
                     }
 
-                    // 병합 or 덮어쓰기 확인
-                    const shouldMerge = confirm(
-                        '기존 데이터와 병합하시겠습니까?\n\n' +
-                        '확인: 병합 (기존 데이터 유지)\n' +
-                        '취소: 덮어쓰기 (기존 데이터 삭제)'
+                    // ========================================
+                    // T-127(R11): 확인을 2단계로. **파괴는 기본값이 될 수 없다.**
+                    // ========================================
+                    //
+                    // ★ 전에는 confirm 하나로 "확인=병합 / 취소=덮어쓰기" 였다.
+                    //   confirm 은 Esc·창 닫기·바깥 클릭에서 전부 false 를 준다.
+                    //   즉 **불러오기를 그만두려고 Esc 를 치면 사전이 통째로
+                    //   갈아끼워졌다.** 취소가 파괴 쪽에 붙어 있었다.
+                    //
+                    // 1단계 취소 → 아무것도 하지 않는다
+                    // 2단계 취소 → 병합 (안전한 쪽)
+                    // 덮어쓰기는 2단계에서 **확인을 눌러야만** 일어난다.
+                    //
+                    // ★ 개수를 문구에 넣는다 — 무엇이 들어오고 무엇이 사라지는지
+                    //   숫자로 보여야 "덮어쓰기" 라는 말이 실감된다.
+                    const incomingCount = data.prompts.length;
+                    const currentCount = allPrompts.length;
+
+                    if (!confirm(
+                        '이 파일을 불러올까요?\n\n' +
+                        '파일 안의 프롬프트: ' + incomingCount + '개\n' +
+                        '지금 사전: ' + currentCount + '개\n\n' +
+                        '취소하면 아무것도 바뀌지 않습니다.'
+                    )) {
+                        console.log('[불러오기] 1단계에서 취소 — 변경 없음');
+                        return;
+                    }
+
+                    // ★ 여기서 확인을 누른 경우에만 덮어쓰기다.
+                    //   Esc·취소는 병합으로 떨어진다.
+                    const shouldMerge = !confirm(
+                        '기존 데이터를 지우고 덮어쓸까요?\n\n' +
+                        '확인: 덮어쓰기 — 지금 있는 ' + currentCount + '개가 삭제됩니다\n' +
+                        '취소: 병합 — 지금 있는 ' + currentCount + '개를 두고 더합니다'
                     );
 
                     // T-116: 파일에 id 가 없으면 새로 부여한다.
@@ -640,8 +687,8 @@
                     }
                     showToast(message);
 
-                    console.log(`[불러오기] v${data.version || '1.0'} — 프롬프트 ${data.prompts.length}, ` +
-                                `카테고리 ${importedCategoryCount}, 미아 ${orphanCount}`);
+                    console.log(`[불러오기] v${data.version || '1.0'} ${shouldMerge ? '병합' : '덮어쓰기'} — ` +
+                                `프롬프트 ${data.prompts.length}, 카테고리 ${importedCategoryCount}, 미아 ${orphanCount}`);
                 } catch (error) {
                     alert('파일을 읽는 중 오류가 발생했습니다.\n' + error.message);
                     console.error('Import error:', error);
@@ -649,7 +696,6 @@
             };
 
             reader.readAsText(file);
-            e.target.value = ''; // 파일 선택 초기화
         }
 
         // 백업에 담긴 테마를 적용한다 (덮어쓰기 전용).

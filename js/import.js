@@ -49,6 +49,23 @@
             e.target.value = ''; // 파일 선택 초기화
         }
 
+        // T-127(R2): JSON 경로를 하나로 합쳤다.
+        //
+        // ★ 전에는 같은 .json 을 두 입구가 서로 다르게 처리했다.
+        //   헤더 [불러오기] → importData: 즐겨찾기·카테고리·검색기록·테마까지 복원
+        //   사이드바 업로드  → parseJSONFile: 프롬프트만, 게다가 **id 재발급**
+        //   그래서 백업을 사이드바에 떨어뜨리면 즐겨찾기가
+        //   **복구 불가능하게** 사라졌다 (새 id 라 다시 붙일 방법이 없다).
+        //   T-114·T-115 가 증명한 "왕복 무손실" 이 한쪽 경로에만 성립했던 것이다.
+        //
+        // ★ 판정기를 두지 않고 **경로를 없앴다.** 둘을 유지한 채 안전하게 하려면
+        //   형식 판정기 + 애매한 파일 확인창 + id 보존을 모두 쌓아야 하는데,
+        //   그 셋은 경로가 하나면 전부 필요 없다.
+        //   R1~R4 가 전부 "같은 일을 하는 경로가 둘이라 한쪽이 어긋난" 문제였다.
+        //
+        // ★ accept 에서 .json 을 뺐지만 **드래그&드롭은 accept 를 무시한다.**
+        //   그래서 여기서 받아 importFromFile 로 넘긴다 — 막지 않고 흡수한다.
+        //   백업을 사이드바에 떨어뜨리는 것은 충분히 자연스러운 실수다.
         function handleFile(file) {
             const fileName = file.name.toLowerCase();
             const fileExt = fileName.split('.').pop();
@@ -56,13 +73,14 @@
             console.log('파일 업로드:', fileName, '타입:', fileExt);
 
             if (fileExt === 'json') {
-                parseJSONFile(file);
+                // 백업 복원 경로로 넘긴다 (storage.js)
+                importFromFile(file);
             } else if (fileExt === 'csv') {
                 parseCSVFile(file);
             } else if (fileExt === 'txt') {
                 parseTXTFile(file);
             } else {
-                alert('지원하지 않는 파일 형식입니다.\nJSON, CSV, TXT 파일만 업로드 가능합니다.');
+                alert('지원하지 않는 파일 형식입니다.\nCSV, TXT 파일을 올리거나,\n백업(JSON)은 상단 [불러오기]를 이용하세요.');
             }
         }
 
@@ -85,105 +103,6 @@
         //   여기는 기존 사전에 더하는 병합이다. 사용자가 보던 화면을
         //   파일 하나가 옮기지 않는다. 새로 들어온 항목은 미분류에 쌓이고
         //   토스트가 그 개수를 알린다.
-
-        // JSON 파일 파싱
-        function parseJSONFile(file) {
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                try {
-                    // T-009c-3: 실패 시 되돌릴 스냅샷 (요소 객체는 새로 만들어 추가만 한다)
-                    const snapshotPrompts = [...allPrompts];
-                    const data = JSON.parse(e.target.result);
-                    
-                    let prompts = [];
-                    
-                    // 배열인지 확인
-                    if (Array.isArray(data)) {
-                        prompts = data;
-                    } else if (data.prompts && Array.isArray(data.prompts)) {
-                        // {prompts: [...]} 형식
-                        prompts = data.prompts;
-                    } else {
-                        // 단일 객체를 배열로
-                        prompts = [data];
-                    }
-
-                    // 프롬프트 검증 및 추가
-                    let addedCount = 0;
-                    let uncategorizedCount = 0; // 미분류로 떨어진 개수
-                    
-                    prompts.forEach(prompt => {
-                        if (prompt.title && prompt.content) {
-                            // T-104f: 카테고리가 없으면 미분류. 아무도 고르지 않은 상태다.
-                            const rawCategory = prompt.category;
-                            const validatedCategory = validateCategory(rawCategory);
-                            
-                            // ★ 파일이 미분류라고 명시한 것이 아닌데 미분류로 떨어진 개수.
-                            //   카테고리가 아예 없던 항목도 포함한다 — 그것도 재분류 대상이다.
-                            //   (예전 조건은 값이 없는 항목을 세지 않아 메시지가 실제보다 적었다)
-                            if (validatedCategory === UNCATEGORIZED && rawCategory !== UNCATEGORIZED) {
-                                uncategorizedCount++;
-                            }
-                            
-                            const newPrompt = {
-                                id: newId(),
-                                title: prompt.title,
-                                content: prompt.content,
-                                category: validatedCategory,
-                                tags: prompt.tags || [],
-                                description: prompt.description || '',
-                                // T-114(B14): 메모가 통째로 소실되던 자리.
-                                //   썸네일도 같은 이유로 빠져 있었다 — 백업을 여기로 다시
-                                //   불러오면 둘 다 사라졌다.
-                                notes: prompt.notes || '',
-                                createdAt: prompt.createdAt || new Date().toISOString()
-                            };
-
-                            if (prompt.thumbnailImage) {
-                                newPrompt.thumbnailImage = prompt.thumbnailImage;
-                            }
-
-                            // T-117: 있을 때만 옮긴다. 없으면 없는 채로 —
-                            //   부재가 "수정된 적 없음" 이라는 정보다.
-                            //   (notes·thumbnailImage 가 소실됐던 바로 그 자리다)
-                            if (prompt.updatedAt) {
-                                newPrompt.updatedAt = prompt.updatedAt;
-                            }
-                            allPrompts.unshift(newPrompt);
-                            addedCount++;
-                        }
-                    });
-
-                    if (addedCount > 0) {
-                        // T-009c-3: 즐겨찾기는 바뀌지 않으므로 프롬프트만 저장
-                        if (await PromptStorage.savePrompts(allPrompts) !== true) {
-                            allPrompts = snapshotPrompts;
-                            applyFilters();
-                            showToast('저장 실패 — 불러오기를 되돌렸습니다 ❌');
-                            return;
-                        }
-
-                        applyFilters();
-                        
-                        // 메시지 생성
-                        let message = `${addedCount}개의 프롬프트 추가 완료! ✅`;
-                        if (uncategorizedCount > 0) {
-                            message += `\n(${uncategorizedCount}개가 '${UNCATEGORIZED}'로 분류됨)`;
-                        }
-                        
-                        showToast(message);
-                        console.log(`${addedCount}개 프롬프트 추가됨 (${UNCATEGORIZED}: ${uncategorizedCount}개)`);
-                    } else {
-                        alert('유효한 프롬프트를 찾을 수 없습니다.\n제목(title)과 본문(content)이 필요합니다.');
-                    }
-
-                } catch (error) {
-                    console.error('JSON 파싱 오류:', error);
-                    alert('JSON 파일을 읽는 중 오류가 발생했습니다.\n' + error.message);
-                }
-            };
-            reader.readAsText(file);
-        }
 
         // CSV 파일 파싱
         function parseCSVFile(file) {

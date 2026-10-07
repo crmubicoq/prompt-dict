@@ -78,8 +78,12 @@
             <div id="upload-area" class="upload-area-sidebar">
                 <div class="upload-icon-small">📂</div>
                 <span>파일 업로드</span>
-                <small>드래그 또는 클릭</small>
-                <input type="file" id="upload-file-input" accept=".json,.csv,.txt" style="display: none;">
+                <small>CSV · TXT — 드래그 또는 클릭</small>
+                <!-- T-127(R2): accept 에서 .json 을 뺐다.
+                     백업 복원은 헤더 [불러오기] 한 곳이다.
+                     드래그&드롭은 accept 를 무시하므로 .json 이 들어올 수 있고,
+                     그때는 handleFile 이 importFromFile 로 넘긴다. -->
+                <input type="file" id="upload-file-input" accept=".csv,.txt" style="display: none;">
             </div>
             </div><!-- /sidebar-fixed -->
         </aside>
