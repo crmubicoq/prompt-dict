@@ -798,12 +798,21 @@
                 // --- 여기서부터 성공 경로 ---
                 state.sessionCount += rows.length;
 
+                // ★ T-129(R7): 체크 해제된 조각은 등록되지 않는다.
+                //   아래 resetBulkInputAfterSubmit 이 그것들을 남기므로
+                //   **비우기 전에** 세어 둔다.
+                const leftover = state.rows.filter(function (row) { return !row.checked; });
+
                 applyFilters();          // 목록 + 사이드바 카운트 갱신
-                resetBulkInputAfterSubmit();
+                resetBulkInputAfterSubmit(leftover);
                 updateBulkSessionCount();
 
-                showToast(rows.length + '개 등록 완료! ✅');
-                console.log('[일괄 등록] ' + rows.length + '개 추가 (카테고리: ' + categoryName + ')');
+                showToast(rows.length + '개 등록 완료! ✅' +
+                    (leftover.length > 0
+                        ? ' · 선택 해제 ' + leftover.length + '개는 등록하지 않았습니다 (아래에 남겨 뒀습니다)'
+                        : ''));
+                console.log('[일괄 등록] ' + rows.length + '개 추가 (카테고리: ' + categoryName +
+                            '), 해제 ' + leftover.length + '개 남김');
             } catch (error) {
                 // 어댑터가 거부를 false 로 정규화하지만(T-011b), 그 바깥에서 터질 수도 있다.
                 allPrompts = snapshotPrompts;
@@ -817,23 +826,57 @@
             }
         }
 
+        // 구분자별 "다시 이어붙일 때" 쓸 문자열 (T-129 R7).
+        //
+        // ★ splitChunks 가 나눈 규칙으로 되돌려야 다시 나눴을 때 같은 조각이 된다.
+        //   none 은 애초에 조각이 1개뿐이라 이어붙일 일이 없다.
+        function bulkJoinSeparator() {
+            const state = bulkState();
+            switch (state.delimiter) {
+                case 'blank2': return '\n\n\n';
+                case 'dashes': return '\n---\n';
+                case 'equals': return '\n===\n';
+                case 'custom': return '\n' + state.custom + '\n';
+                default:       return '\n\n\n';
+            }
+        }
+
         // 등록 후 정리 (설계 §10.3)
         //
         // ★ 모달은 열어 둔다. 소스가 3종이라 이어서 넣을 가능성이 높다.
-        // ★ textarea 와 미리보기만 비운다. 구분자 선택·직접 입력·카테고리는 남긴다.
-        // ★ sourceText 도 함께 비워야 T-104c 의 편집 확인이 뜨지 않는다 —
-        //   비운 textarea 와 남은 rows 가 어긋나면 다음 입력에서 엉뚱한 확인이 뜬다.
-        function resetBulkInputAfterSubmit() {
+        // ★ 구분자 선택·직접 입력·카테고리는 남긴다.
+        // ★ sourceText 를 textarea 와 **같은 값으로** 맞춘다. 둘이 어긋나면
+        //   다음 입력에서 T-104c 의 "수정한 내용이 사라집니다" 가 이유 없이 뜬다.
+        //
+        // ★ T-129(R7): 체크 해제된 조각은 **지우지 않고 남긴다.**
+        //   전에는 등록 성공과 동시에 textarea·미리보기를 통째로 비워서,
+        //   해제된 조각이 무엇이었는지 **누른 뒤에는 볼 방법이 없었다.**
+        //   기본 해제 사유는 "짧음·중복" 이라 대개 버려도 되지만,
+        //   그것들이야말로 사용자가 눈으로 확인하려던 대상이다.
+        //   토스트로 개수만 알리는 것은 "무엇이" 빠졌는지를 못 알려준다.
+        //
+        // ★ rows 를 다시 나누지 않고 **그대로 추린다.** 제목·본문 편집과
+        //   경고 배지가 살아남는다. textarea 는 본문을 이어붙여 맞춘다.
+        function resetBulkInputAfterSubmit(leftover) {
             const state = bulkState();
+            const kept = Array.isArray(leftover) ? leftover : [];
+
+            const text = kept
+                .map(function (row) { return row.body; })
+                .join(bulkJoinSeparator());
 
             const textEl = document.getElementById('bulk-text');
-            if (textEl) textEl.value = '';
+            if (textEl) textEl.value = text;
 
-            state.rows = [];
-            state.sourceText = '';
+            state.rows = kept;
+            state.sourceText = text;   // 같은 값이라 다음 refresh 가 재분할하지 않는다
 
-            const list = document.getElementById('bulk-preview-list');
-            if (list) list.innerHTML = '';
+            if (kept.length > 0) {
+                renderBulkPreview();
+            } else {
+                const list = document.getElementById('bulk-preview-list');
+                if (list) list.innerHTML = '';
+            }
 
             refreshBulkCounts();
             updateBulkSelectionSummary();

@@ -104,6 +104,34 @@
         //   파일 하나가 옮기지 않는다. 새로 들어온 항목은 미분류에 쌓이고
         //   토스트가 그 개수를 알린다.
 
+        // T-129(R6): 건너뛴 행을 한 줄로 알린다.
+        //
+        // ★ 행 번호를 보여 준다 — 개수만 알려주면 파일에서 어디를 봐야
+        //   할지 알 수 없다. 다만 전부 늘어놓으면 토스트가 화면을 덮으므로
+        //   앞 8개만 쓰고 나머지는 "… 외 N개" 로 줄인다.
+        // ★ 버릴 것이 없으면 빈 문자열이다. 붙일 말이 없으면 붙이지 않는다.
+        const SKIP_LIST_MAX = 8;
+
+        function formatRowNumbers(rows) {
+            const head = rows.slice(0, SKIP_LIST_MAX).join(', ');
+            return rows.length > SKIP_LIST_MAX
+                ? head + ' … 외 ' + (rows.length - SKIP_LIST_MAX) + '개'
+                : head;
+        }
+
+        function skippedNotice(skippedEmpty, skippedShort) {
+            let notice = '';
+            if (skippedEmpty.length > 0) {
+                notice += '\n' + skippedEmpty.length + '행은 본문이 비어 건너뛰었습니다 (' +
+                          formatRowNumbers(skippedEmpty) + '행)';
+            }
+            if (skippedShort.length > 0) {
+                notice += '\n' + skippedShort.length + '행은 열이 모자라 건너뛰었습니다 (' +
+                          formatRowNumbers(skippedShort) + '행)';
+            }
+            return notice;
+        }
+
         // CSV 파일 파싱
         function parseCSVFile(file) {
             const reader = new FileReader();
@@ -112,7 +140,14 @@
                     // T-009c-3: 실패 시 되돌릴 스냅샷 (요소 객체는 새로 만들어 추가만 한다)
                     const snapshotPrompts = [...allPrompts];
                     const text = e.target.result;
-                    const lines = text.split('\n').filter(line => line.trim());
+                    // ★ T-129(R6): 원본 줄 번호를 들고 간다.
+                    //   전에는 filter 로 빈 줄을 먼저 지워 인덱스가 밀렸다.
+                    //   그 인덱스로 "몇 행" 을 안내하면 파일을 열었을 때 엉뚱한
+                    //   줄을 가리킨다 — 안내가 틀리면 없느니만 못하다.
+                    const lines = [];
+                    text.split('\n').forEach(function (raw, i) {
+                        if (raw.trim()) lines.push({ no: i + 1, text: raw });
+                    });
                     
                     if (lines.length < 2) {
                         alert('CSV 파일이 비어있거나 형식이 올바르지 않습니다.');
@@ -120,41 +155,60 @@
                     }
 
                     // 헤더 확인 (첫 줄)
-                    const headers = lines[0].split(',').map(h => h.trim());
+                    const headers = lines[0].text.split(',').map(h => h.trim());
                     
                     let addedCount = 0;
                     let uncategorizedCount = 0; // 미분류로 떨어진 개수
                     
+                    // ★ T-129(R6): 조용히 버리지 않는다.
+                    //   버리는 조건이 둘인데 둘 다 아무 말도 없었다 —
+                    //   50행 CSV 중 8행이 빠져도 "42개 추가 완료" 만 떴다.
+                    //   사유를 나눠 센다. "열이 모자람" 과 "본문이 빔" 은
+                    //   사용자가 파일에서 고쳐야 할 것이 서로 다르다.
+                    const skippedEmpty = [];   // 본문 열이 비어 있다
+                    const skippedShort = [];   // 열이 2개가 안 된다
+
                     // 데이터 행 처리
                     for (let i = 1; i < lines.length; i++) {
-                        const values = lines[i].split(',').map(v => v.trim());
+                        const values = lines[i].text.split(',').map(v => v.trim());
                         
-                        if (values.length >= 2) {
-                            // T-104f: 카테고리가 없으면 미분류. 아무도 고르지 않은 상태다.
-                            const rawCategory = values[2];
-                            const validatedCategory = validateCategory(rawCategory);
-                            
+                        if (values.length < 2) {
+                            skippedShort.push(lines[i].no);
+                            continue;
+                        }
+
+                        // T-104f: 카테고리가 없으면 미분류. 아무도 고르지 않은 상태다.
+                        const rawCategory = values[2];
+                        const validatedCategory = validateCategory(rawCategory);
+                        
+                        
+                        const newPrompt = {
+                            id: newId(),
+                            // 제목이 비면 **파일의 실제 행 번호**로 표시한다 (T-129).
+                            //   걸러낸 뒤의 인덱스로는 파일에서 찾을 수 없다.
+                            title: values[0] || `프롬프트 (${lines[i].no}행)`,
+                            content: values[1] || '',
+                            category: validatedCategory,
+                            tags: values[3] ? values[3].split(';').map(t => t.trim()) : [],
+                            description: values[4] || '',
+                            // T-114(B14): 6번째 열이 있으면 메모로 읽는다
+                            notes: values[5] || '',
+                            createdAt: new Date().toISOString()
+                        };
+                        
+                        if (newPrompt.content) {
+                            allPrompts.unshift(newPrompt);
+                            addedCount++;
+
                             // ★ 파일이 미분류라고 명시한 것이 아닌데 미분류로 떨어진 개수.
+                            //   T-129: **실제로 들어간 것만** 센다. 전에는 이 줄이 위에 있어
+                            //   건너뛸 행까지 세었다 — 3건 추가에 "2개가 미분류로 분류됨" 처럼
+                            //   화면의 숫자가 사실과 어긋났다 (실측).
                             if (validatedCategory === UNCATEGORIZED && rawCategory !== UNCATEGORIZED) {
                                 uncategorizedCount++;
                             }
-                            
-                            const newPrompt = {
-                                id: newId(),
-                                title: values[0] || `프롬프트 ${i}`,
-                                content: values[1] || '',
-                                category: validatedCategory,
-                                tags: values[3] ? values[3].split(';').map(t => t.trim()) : [],
-                                description: values[4] || '',
-                                // T-114(B14): 6번째 열이 있으면 메모로 읽는다
-                                notes: values[5] || '',
-                                createdAt: new Date().toISOString()
-                            };
-                            
-                            if (newPrompt.content) {
-                                allPrompts.unshift(newPrompt);
-                                addedCount++;
-                            }
+                        } else {
+                            skippedEmpty.push(lines[i].no);
                         }
                     }
 
@@ -175,10 +229,17 @@
                             message += `\n(${uncategorizedCount}개가 '${UNCATEGORIZED}'로 분류됨)`;
                         }
                         
+                        message += skippedNotice(skippedEmpty, skippedShort);
+
                         showToast(message);
-                        console.log(`${addedCount}개 프롬프트 추가됨 (CSV, ${UNCATEGORIZED}: ${uncategorizedCount}개)`);
+                        console.log(`${addedCount}개 프롬프트 추가됨 (CSV, ${UNCATEGORIZED}: ${uncategorizedCount}개, ` +
+                                    `건너뜀: 본문없음 ${skippedEmpty.length} / 열부족 ${skippedShort.length})`);
                     } else {
-                        alert('유효한 프롬프트를 찾을 수 없습니다.');
+                        // ★ T-129(R6): 왜 0건인지 말한다. "없다" 만으로는 고칠 수 없다.
+                        alert('유효한 프롬프트를 찾을 수 없습니다.' +
+                              (skippedEmpty.length + skippedShort.length > 0
+                                  ? skippedNotice(skippedEmpty, skippedShort)
+                                  : '\n2번째 열(본문)에 내용이 있어야 합니다.'));
                     }
 
                 } catch (error) {
@@ -235,6 +296,10 @@
                             if (rawLines[i].trim()) { titleIndex = i; break; }
                         }
                         
+                        // ★ T-129(R6) 확인: 여기서 조용히 버려지는 조각은 없다.
+                        //   splitChunks 가 이미 공백뿐인 조각을 걸러내므로
+                        //   (bulk.js 의 trim + filter) titleIndex 는 항상 -1 이 아니다.
+                        //   조건은 방어로 남긴다 — 분할 규칙이 바뀌면 되살아난다.
                         if (titleIndex !== -1) {
                             const titleLine = rawLines[titleIndex].trim();
                             const body = rawLines.slice(titleIndex + 1).join('\n').trim();
